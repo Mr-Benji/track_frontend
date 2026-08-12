@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchProjects, createProject, HOME_DEPARTMENT, ACCESS_LEVELS, DEFAULT_STAGES } from '../features/projects/api'
+import { fetchProjects, createProject, updateProject, deleteProject, HOME_DEPARTMENT, ACCESS_LEVELS, DEFAULT_STAGES } from '../features/projects/api'
+import { fetchDepartments } from '../features/departments/api'
 import RichTextEditor from '../components/RichTextEditor'
 
 const AVATAR_COLORS = [
@@ -11,8 +12,6 @@ const AVATAR_COLORS = [
   'bg-rose-100 text-rose-700',
   'bg-indigo-100 text-indigo-700',
 ]
-
-const DEPT_OPTIONS = ['Development', 'Design', 'Research', 'Operations', 'General']
 
 const initials = (name) =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -97,7 +96,7 @@ function ProjectMeta({ p }) {
   )
 }
 
-function ProjectCard({ p }) {
+function ProjectCard({ p, onEdit, onDelete }) {
   const progress = p.tasks === 0 ? 0 : Math.round((p.completed / p.tasks) * 100)
   const barColor = p.status === 'Overdue' ? 'bg-red-400' : progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'
   return (
@@ -131,11 +130,26 @@ function ProjectCard({ p }) {
           <div className={`h-full rounded-full ${barColor}`} style={{ width: `${progress}%` }}></div>
         </div>
       </div>
+
+      <div className="flex gap-2 pt-3 border-t border-gray-50">
+        <button
+          onClick={() => onEdit(p)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => onDelete(p)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   )
 }
 
-function ProjectListRow({ p }) {
+function ProjectListRow({ p, onEdit, onDelete }) {
   const progress = p.tasks === 0 ? 0 : Math.round((p.completed / p.tasks) * 100)
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3.5 flex items-center gap-4 hover:shadow-md transition">
@@ -160,11 +174,25 @@ function ProjectListRow({ p }) {
           <div className={`h-full rounded-full ${p.status === 'Overdue' ? 'bg-red-400' : progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div>
         </div>
       </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={() => onEdit(p)}
+          className="px-3 py-2 text-xs font-semibold rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => onDelete(p)}
+          className="px-3 py-2 text-xs font-semibold rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   )
 }
 
-function ProjectGroup({ title, subtitle, items, layout }) {
+function ProjectGroup({ title, subtitle, items, layout, onEdit, onDelete }) {
   if (items.length === 0) return null
   return (
     <div className="mb-8">
@@ -176,11 +204,11 @@ function ProjectGroup({ title, subtitle, items, layout }) {
       </div>
       {layout === 'Grid' ? (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {items.map((p) => <ProjectCard key={p.id} p={p} />)}
+          {items.map((p) => <ProjectCard key={p.id} p={p} onEdit={onEdit} onDelete={onDelete} />)}
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((p) => <ProjectListRow key={p.id} p={p} />)}
+          {items.map((p) => <ProjectListRow key={p.id} p={p} onEdit={onEdit} onDelete={onDelete} />)}
         </div>
       )}
     </div>
@@ -189,19 +217,19 @@ function ProjectGroup({ title, subtitle, items, layout }) {
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
-function NewProjectModal({ onClose, onCreate, creating, error }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [departments, setDepartments] = useState([])
-  const [leads, setLeads] = useState([])
+function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, submitting, error, departmentOptions }) {
+  const [name, setName] = useState(initialProject?.name ?? '')
+  const [description, setDescription] = useState(initialProject?.description ?? '')
+  const [departments, setDepartments] = useState(initialProject?.departments ?? [])
+  const [leads, setLeads] = useState(initialProject?.leads ?? [])
   const [leadInput, setLeadInput] = useState('')
-  const [start, setStart] = useState(todayISO())
-  const [end, setEnd] = useState(todayISO())
-  const [stages, setStages] = useState(DEFAULT_STAGES)
+  const [start, setStart] = useState(initialProject?.startISO ?? todayISO())
+  const [end, setEnd] = useState(initialProject?.endISO ?? todayISO())
+  const [stages, setStages] = useState(initialProject?.workflowStages?.length ? initialProject.workflowStages : DEFAULT_STAGES)
   const [stageInput, setStageInput] = useState('')
-  const [sprintsEnabled, setSprintsEnabled] = useState(false)
-  const [files, setFiles] = useState([])
-  const [accessLevel, setAccessLevel] = useState(ACCESS_LEVELS[0])
+  const [sprintsEnabled, setSprintsEnabled] = useState(initialProject?.sprintsEnabled ?? false)
+  const [files, setFiles] = useState(initialProject?.files ?? [])
+  const [accessLevel, setAccessLevel] = useState(initialProject?.accessLevel ?? ACCESS_LEVELS[0])
 
   function toggleDept(d) {
     setDepartments((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])
@@ -233,8 +261,10 @@ function NewProjectModal({ onClose, onCreate, creating, error }) {
     >
       <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 mx-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">New project</h2>
-          <p className="text-sm text-gray-400 mt-0.5">It will start in Planning status.</p>
+          <h2 className="text-xl font-bold text-gray-900">{mode === 'edit' ? 'Edit project' : 'New project'}</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {mode === 'edit' ? initialProject.name : 'It will start in Planning status.'}
+          </p>
         </div>
         <input
           value={name}
@@ -252,7 +282,7 @@ function NewProjectModal({ onClose, onCreate, creating, error }) {
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1.5">Departments</label>
           <div className="flex flex-wrap gap-2">
-            {DEPT_OPTIONS.map((d) => (
+            {departmentOptions.map((d) => (
               <button
                 key={d}
                 type="button"
@@ -394,14 +424,14 @@ function NewProjectModal({ onClose, onCreate, creating, error }) {
             Cancel
           </button>
           <button
-            onClick={() => onCreate({
+            onClick={() => onSubmit({
               name, description, departments, leads, start, end,
               workflowStages: stages, sprintsEnabled, files, accessLevel,
             })}
-            disabled={creating || !name}
+            disabled={submitting || !name}
             className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
           >
-            {creating ? 'Creating...' : 'Create project'}
+            {submitting ? 'Saving...' : mode === 'edit' ? 'Save changes' : 'Create project'}
           </button>
         </div>
       </div>
@@ -418,9 +448,12 @@ export default function ProjectsPage() {
   const [sortDir, setSortDir] = useState('desc')
   const [layout, setLayout] = useState('Grid')
   const [showNew, setShowNew] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const queryClient = useQueryClient()
   const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const departments = useQuery({ queryKey: ['departments'], queryFn: fetchDepartments })
 
   const create = useMutation({
     mutationFn: createProject,
@@ -430,7 +463,30 @@ export default function ProjectsPage() {
     },
   })
 
-  const all = projects.data ?? []
+  const edit = useMutation({
+    mutationFn: updateProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setEditingProject(null)
+    },
+  })
+
+  const remove = useMutation({
+    mutationFn: deleteProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setDeleteError('')
+    },
+    onError: (err) => setDeleteError(err.message),
+  })
+
+  function handleDelete(p) {
+    if (window.confirm(`Delete "${p.name}"? This can't be undone.`)) {
+      remove.mutate(p.id)
+    }
+  }
+
+  const all = useMemo(() => projects.data ?? [], [projects.data])
   const counts = {
     Ongoing: all.filter((p) => !p.archived).length,
     Archived: all.filter((p) => p.archived).length,
@@ -554,18 +610,24 @@ export default function ProjectsPage() {
         </div>
       </div>
 
+      {deleteError && (
+        <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-5">{deleteError}</p>
+      )}
+
       {projects.isLoading && (
         <p className="text-center py-12 text-sm text-gray-400">Loading projects...</p>
       )}
 
       {!projects.isLoading && (
         <>
-          <ProjectGroup title={`${HOME_DEPARTMENT} Projects`} items={homeGroup} layout={layout} />
+          <ProjectGroup title={`${HOME_DEPARTMENT} Projects`} items={homeGroup} layout={layout} onEdit={setEditingProject} onDelete={handleDelete} />
           <ProjectGroup
             title="Other Projects"
             subtitle="Projects from other departments or general projects"
             items={otherGroup}
             layout={layout}
+            onEdit={setEditingProject}
+            onDelete={handleDelete}
           />
         </>
       )}
@@ -578,11 +640,25 @@ export default function ProjectsPage() {
       )}
 
       {showNew && (
-        <NewProjectModal
+        <ProjectFormModal
+          mode="create"
           onClose={() => setShowNew(false)}
-          onCreate={(payload) => create.mutate(payload)}
-          creating={create.isPending}
+          onSubmit={(payload) => create.mutate(payload)}
+          submitting={create.isPending}
           error={create.isError ? create.error.message : null}
+          departmentOptions={(departments.data ?? []).map((d) => d.name)}
+        />
+      )}
+
+      {editingProject && (
+        <ProjectFormModal
+          mode="edit"
+          initialProject={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSubmit={(payload) => edit.mutate({ projectId: editingProject.id, ...payload })}
+          submitting={edit.isPending}
+          error={edit.isError ? edit.error.message : null}
+          departmentOptions={(departments.data ?? []).map((d) => d.name)}
         />
       )}
     </div>

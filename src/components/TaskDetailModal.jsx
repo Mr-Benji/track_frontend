@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   updateTask,
   updateTaskStatus,
+  deleteTask,
   addComment,
   addSubtask,
   toggleSubtask,
@@ -60,6 +61,16 @@ export default function TaskDetailModal({ task, user, onClose }) {
 
   const patch = useMutation({ mutationFn: updateTask, onSuccess: invalidate })
   const setStatus = useMutation({ mutationFn: updateTaskStatus, onSuccess: invalidate })
+  const remove = useMutation({
+    mutationFn: deleteTask,
+    onSuccess: () => { invalidate(); onClose() },
+  })
+
+  function handleDelete() {
+    if (window.confirm(`Delete "${task.title}"? This can't be undone.`)) {
+      remove.mutate(task.id)
+    }
+  }
   const postComment = useMutation({
     mutationFn: addComment,
     onSuccess: () => { setNewComment(''); invalidate() },
@@ -138,11 +149,24 @@ export default function TaskDetailModal({ task, user, onClose }) {
             >
               {shareCopied ? 'Copied!' : 'Share'}
             </button>
+            <button
+              onClick={handleDelete}
+              disabled={remove.isPending}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
+            >
+              {remove.isPending ? 'Deleting...' : 'Delete'}
+            </button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">
               ✕
             </button>
           </div>
         </div>
+
+        {remove.isError && (
+          <div className="mx-6 mt-4 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+            {remove.error.message}
+          </div>
+        )}
 
         {task.isDraft && (
           <div className="flex items-center justify-between gap-3 mx-6 mt-4 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">

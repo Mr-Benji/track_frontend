@@ -6,3 +6,9 @@ export async function loginRequest({ email, password }) {
   setToken(data.token)
   return data
 }
+
+export async function activateRequest({ email, password }) {
+  const data = await apiClient.post('/auth/activate', { email, password })
+  setToken(data.token)
+  return data
+}

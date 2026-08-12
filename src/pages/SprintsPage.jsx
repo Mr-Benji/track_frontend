@@ -1,17 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchSprints, createSprint } from '../features/sprints/api'
+import { fetchSprints, createSprint, updateSprint, deleteSprint } from '../features/sprints/api'
 import { fetchTasks, createTask } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
-
-// Temporary frontend mapping until sprint-task assignments are supplied by an API.
-const SPRINT_TASK_IDS = {
-  1: [6, 7, 8],
-  2: [2, 3],
-  3: [1, 3, 4, 10, 11],
-  4: [2, 5, 9],
-  5: [],
-}
 
 const statusStyle = {
   Active: 'bg-emerald-50 text-emerald-600 border-emerald-200',
@@ -25,15 +16,15 @@ const columnAccent = {
   Completed: 'border-t-gray-300',
 }
 
-const progressOf = (s) => (s.tasks === 0 ? 0 : Math.round((s.done / s.tasks) * 100))
-
-function SprintCard({ s, compact, onOpenTasks, taskCount, doneCount }) {
+function SprintCard({ s, compact, onOpenTasks, onEdit, onDelete, taskCount, doneCount }) {
   const pct = taskCount === 0 ? 0 : Math.round((doneCount / taskCount) * 100)
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpenTasks(s)}
-      className="w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-sky-200 transition"
+      onKeyDown={(e) => e.key === 'Enter' && onOpenTasks(s)}
+      className="w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-sky-200 transition cursor-pointer"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -64,7 +55,85 @@ function SprintCard({ s, compact, onOpenTasks, taskCount, doneCount }) {
         <span>{taskCount - doneCount} remaining</span>
       </div>
       <p className="mt-3 text-xs font-semibold text-sky-600">View sprint tasks →</p>
-    </button>
+      <div className="flex gap-2 pt-3 mt-3 border-t border-gray-50" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => onEdit(s)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(s)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function EditSprintModal({ sprint, onClose, onSave, saving, error }) {
+  const [name, setName] = useState(sprint.name)
+  const [goal, setGoal] = useState(sprint.goal ?? '')
+  const [status, setStatus] = useState(sprint.status)
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Edit sprint</h2>
+        </div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Sprint name"
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        <textarea
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          placeholder="Sprint goal"
+          rows={3}
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
+        />
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            <option value="Planning">Planning</option>
+            <option value="Active">Active</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({ name, goal, status })}
+            disabled={saving || !name}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -155,6 +224,8 @@ export default function SprintsPage() {
   const [newName, setNewName] = useState('')
   const [newGoal, setNewGoal] = useState('')
   const [selectedSprint, setSelectedSprint] = useState(null)
+  const [editingSprint, setEditingSprint] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const queryClient = useQueryClient()
   const sprints = useQuery({ queryKey: ['sprints'], queryFn: fetchSprints })
@@ -170,11 +241,32 @@ export default function SprintsPage() {
     },
   })
 
+  const edit = useMutation({
+    mutationFn: updateSprint,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sprints'] })
+      setEditingSprint(null)
+    },
+  })
+
+  const remove = useMutation({
+    mutationFn: deleteSprint,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sprints'] })
+      setDeleteError('')
+    },
+    onError: (err) => setDeleteError(err.message),
+  })
+
+  function handleDelete(s) {
+    if (window.confirm(`Delete "${s.name}"? This can't be undone.`)) {
+      remove.mutate(s.id)
+    }
+  }
+
   const all = sprints.data ?? []
   const tasks = tasksQuery.data ?? []
-  const tasksForSprint = (sprint) => tasks.filter(
-    (task) => task.sprintId === sprint.id || (SPRINT_TASK_IDS[sprint.id] ?? []).includes(task.id)
-  )
+  const tasksForSprint = (sprint) => tasks.filter((task) => task.sprintId === sprint.id)
   const taskSummary = (sprint) => {
     const sprintTasks = tasksForSprint(sprint)
     return {
@@ -250,6 +342,10 @@ export default function SprintsPage() {
         </div>
       )}
 
+      {deleteError && (
+        <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-5">{deleteError}</p>
+      )}
+
       {sprints.isLoading && (
         <p className="text-center py-12 text-sm text-gray-400">Loading sprints...</p>
       )}
@@ -257,7 +353,7 @@ export default function SprintsPage() {
       {view === 'List' && (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visible.map((s) => (
-            <SprintCard key={s.id} s={s} onOpenTasks={setSelectedSprint} {...taskSummary(s)} />
+            <SprintCard key={s.id} s={s} onOpenTasks={setSelectedSprint} onEdit={setEditingSprint} onDelete={handleDelete} {...taskSummary(s)} />
           ))}
         </div>
       )}
@@ -278,7 +374,7 @@ export default function SprintsPage() {
                 </div>
                 <div className="space-y-3">
                   {items.map((s) => (
-                    <SprintCard key={s.id} s={s} compact onOpenTasks={setSelectedSprint} {...taskSummary(s)} />
+                    <SprintCard key={s.id} s={s} compact onOpenTasks={setSelectedSprint} onEdit={setEditingSprint} onDelete={handleDelete} {...taskSummary(s)} />
                   ))}
                   {items.length === 0 && (
                     <p className="text-xs text-gray-400 text-center py-6">No sprints</p>
@@ -298,7 +394,10 @@ export default function SprintsPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNew(false) }}
+        >
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">New sprint</h2>
@@ -340,6 +439,16 @@ export default function SprintsPage() {
       )}
 
       <SprintTasksModal sprint={selectedSprint} tasks={selectedSprint ? tasksForSprint(selectedSprint) : []} onClose={() => setSelectedSprint(null)} />
+
+      {editingSprint && (
+        <EditSprintModal
+          sprint={editingSprint}
+          onClose={() => setEditingSprint(null)}
+          onSave={(patch) => edit.mutate({ sprintId: editingSprint.id, ...patch })}
+          saving={edit.isPending}
+          error={edit.isError ? edit.error.message : null}
+        />
+      )}
     </div>
   )
 }

@@ -11,6 +11,13 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+
+# Leftover duplicate scaffold, not part of the app
+track-workspace/
+
+# Unrelated presentation file
+*.pptx
 
 # Editor directories and files
 .vscode/*

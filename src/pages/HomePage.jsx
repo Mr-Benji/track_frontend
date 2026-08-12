@@ -4,7 +4,7 @@ import { fetchTasks } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
 import { fetchMembers } from '../features/members/api'
 import { fetchSprints } from '../features/sprints/api'
-import { fetchMeetings, createMeeting } from '../features/meetings/api'
+import { fetchMeetings, createMeeting, updateMeeting, deleteMeeting } from '../features/meetings/api'
 import DashboardCalendar from '../components/DashboardCalendar'
 import { isWithinWeek, sameDay } from '../lib/dateUtils'
 
@@ -84,12 +84,66 @@ function formatMeetingDate(iso) {
 
 // The "Projects & Meetings" dashboard view's one distinguishing section —
 // otherwise that view looked identical to the default layout.
+function EditMeetingModal({ meeting, onClose, onSave, saving, error }) {
+  const [title, setTitle] = useState(meeting.title)
+  const [date, setDate] = useState(meeting.date)
+  const [time, setTime] = useState(meeting.time ?? '')
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 mx-4">
+        <h2 className="text-lg font-bold text-gray-900">Edit meeting</h2>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Meeting title"
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+          />
+          <input
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            placeholder="e.g. 10:00 AM"
+            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+          />
+        </div>
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({ title, date, time })}
+            disabled={saving || !title || !date}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MeetingsPanel({ meetings, now }) {
   const queryClient = useQueryClient()
   const [showNew, setShowNew] = useState(false)
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  const [editingMeeting, setEditingMeeting] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const create = useMutation({
     mutationFn: createMeeting,
@@ -101,6 +155,29 @@ function MeetingsPanel({ meetings, now }) {
       setTime('')
     },
   })
+
+  const edit = useMutation({
+    mutationFn: updateMeeting,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meetings'] })
+      setEditingMeeting(null)
+    },
+  })
+
+  const remove = useMutation({
+    mutationFn: deleteMeeting,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meetings'] })
+      setDeleteError('')
+    },
+    onError: (err) => setDeleteError(err.message),
+  })
+
+  function handleDelete(m) {
+    if (window.confirm(`Delete "${m.title}"? This can't be undone.`)) {
+      remove.mutate(m.id)
+    }
+  }
 
   const thisWeekCount = meetings.filter((m) => isWithinWeek(m.date, now)).length
 
@@ -117,14 +194,30 @@ function MeetingsPanel({ meetings, now }) {
       </div>
       <p className="text-xs text-gray-400 mb-4">{meetings.length} upcoming · {thisWeekCount} this week</p>
 
+      {deleteError && (
+        <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{deleteError}</p>
+      )}
+
       <div className="space-y-2.5">
         {meetings.map((m) => (
           <div key={m.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-            <p className="text-sm font-medium text-gray-800">{m.title}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{formatMeetingDate(m.date)}{m.time && ` · ${m.time}`}</p>
-            {m.attendees.length > 0 && (
-              <p className="text-[11px] text-gray-400 mt-1 truncate">{m.attendees.join(', ')}</p>
-            )}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800">{m.title}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{formatMeetingDate(m.date)}{m.time && ` · ${m.time}`}</p>
+                {m.attendees.length > 0 && (
+                  <p className="text-[11px] text-gray-400 mt-1 truncate">{m.attendees.join(', ')}</p>
+                )}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={() => setEditingMeeting(m)} className="text-xs text-sky-500 hover:text-sky-700 font-medium">
+                  Edit
+                </button>
+                <button onClick={() => handleDelete(m)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         ))}
         {meetings.length === 0 && (
@@ -173,6 +266,16 @@ function MeetingsPanel({ meetings, now }) {
             </div>
           </div>
         </div>
+      )}
+
+      {editingMeeting && (
+        <EditMeetingModal
+          meeting={editingMeeting}
+          onClose={() => setEditingMeeting(null)}
+          onSave={(patch) => edit.mutate({ meetingId: editingMeeting.id, ...patch })}
+          saving={edit.isPending}
+          error={edit.isError ? edit.error.message : null}
+        />
       )}
     </div>
   )

@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchDepartments, createDepartment } from '../features/departments/api'
+import { fetchDepartments, createDepartment, updateDepartment, deleteDepartment } from '../features/departments/api'
 
-function DepartmentCard({ d }) {
+function DepartmentCard({ d, onEdit, onDelete }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition">
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <p className="font-bold text-gray-900 truncate">{d.name}</p>
           <div className="mt-2 text-xs min-w-0">
-            <p className="font-semibold text-gray-700 truncate">{d.lead}</p>
+            <p className="font-semibold text-gray-700 truncate">{d.lead || 'No lead assigned'}</p>
             <p className="text-gray-400">Department lead</p>
           </div>
         </div>
@@ -18,7 +18,69 @@ function DepartmentCard({ d }) {
         <span className="text-xs text-gray-400">
           {d.members} {d.members === 1 ? 'member' : 'members'}
         </span>
-        <p className="text-xs text-gray-600 mt-1 truncate">{d.people.join(', ')}</p>
+        <p className="text-xs text-gray-600 mt-1 truncate">{(d.people ?? []).join(', ')}</p>
+      </div>
+      <div className="flex gap-2 pt-4 mt-4 border-t border-gray-50">
+        <button
+          onClick={() => onEdit(d)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => onDelete(d)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function EditDepartmentModal({ department, onClose, onSave, saving, error }) {
+  const [name, setName] = useState(department.name)
+  const [lead, setLead] = useState(department.lead ?? '')
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Edit department</h2>
+        </div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Department name"
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        <input
+          value={lead}
+          onChange={(e) => setLead(e.target.value)}
+          placeholder="Department lead (name)"
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({ name, lead })}
+            disabled={saving || !name}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -29,6 +91,8 @@ export default function DepartmentsPage() {
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
   const [newLead, setNewLead] = useState('')
+  const [editingDept, setEditingDept] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const queryClient = useQueryClient()
   const departments = useQuery({ queryKey: ['departments'], queryFn: fetchDepartments })
@@ -43,10 +107,33 @@ export default function DepartmentsPage() {
     },
   })
 
+  const edit = useMutation({
+    mutationFn: updateDepartment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+      setEditingDept(null)
+    },
+  })
+
+  const remove = useMutation({
+    mutationFn: deleteDepartment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+      setDeleteError('')
+    },
+    onError: (err) => setDeleteError(err.message),
+  })
+
+  function handleDelete(d) {
+    if (window.confirm(`Delete "${d.name}"? This can't be undone.`)) {
+      remove.mutate(d.id)
+    }
+  }
+
   const all = departments.data ?? []
   const visible = all.filter((d) =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.lead.toLowerCase().includes(search.toLowerCase())
+    (d.lead ?? '').toLowerCase().includes(search.toLowerCase())
   )
   const totalMembers = all.reduce((sum, d) => sum + d.members, 0)
 
@@ -78,13 +165,17 @@ export default function DepartmentsPage() {
         />
       </div>
 
+      {deleteError && (
+        <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-5">{deleteError}</p>
+      )}
+
       {departments.isLoading && (
         <p className="text-center py-12 text-sm text-gray-400">Loading departments...</p>
       )}
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {visible.map((d) => (
-          <DepartmentCard key={d.id} d={d} />
+          <DepartmentCard key={d.id} d={d} onEdit={setEditingDept} onDelete={handleDelete} />
         ))}
       </div>
 
@@ -96,7 +187,10 @@ export default function DepartmentsPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNew(false) }}
+        >
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">New department</h2>
@@ -134,6 +228,16 @@ export default function DepartmentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingDept && (
+        <EditDepartmentModal
+          department={editingDept}
+          onClose={() => setEditingDept(null)}
+          onSave={(patch) => edit.mutate({ departmentId: editingDept.id, ...patch })}
+          saving={edit.isPending}
+          error={edit.isError ? edit.error.message : null}
+        />
       )}
     </div>
   )

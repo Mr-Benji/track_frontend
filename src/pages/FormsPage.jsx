@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchForms, createForm } from '../features/forms/api'
+import { fetchForms, createForm, updateForm } from '../features/forms/api'
 
 const initials = (name) =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -19,7 +19,68 @@ const colorFor = (name) => {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length]
 }
 
-function FormCard({ f }) {
+function EditFormModal({ form, onClose, onSave, saving, error }) {
+  const [title, setTitle] = useState(form.title)
+  const [description, setDescription] = useState(form.description ?? '')
+  const [status, setStatus] = useState(form.status)
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Edit form</h2>
+        </div>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Form title"
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Short description"
+          rows={3}
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
+        />
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({ title, description, status })}
+            disabled={saving || !title}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FormCard({ f, onEdit }) {
   const pct = f.target === 0 ? 0 : Math.min(100, Math.round((f.responses / f.target) * 100))
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition flex flex-col gap-4">
@@ -68,6 +129,12 @@ function FormCard({ f }) {
         >
           Fill form
         </button>
+        <button
+          onClick={() => onEdit(f)}
+          className="px-3 py-2 text-xs font-semibold rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+        >
+          Edit
+        </button>
       </div>
     </div>
   )
@@ -78,6 +145,7 @@ export default function FormsPage() {
   const [showNew, setShowNew] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
+  const [editingForm, setEditingForm] = useState(null)
 
   const queryClient = useQueryClient()
   const forms = useQuery({ queryKey: ['forms'], queryFn: fetchForms })
@@ -89,6 +157,14 @@ export default function FormsPage() {
       setShowNew(false)
       setNewTitle('')
       setNewDesc('')
+    },
+  })
+
+  const edit = useMutation({
+    mutationFn: updateForm,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forms'] })
+      setEditingForm(null)
     },
   })
 
@@ -144,7 +220,7 @@ export default function FormsPage() {
           )}
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
             {all.map((f) => (
-              <FormCard key={f.id} f={f} />
+              <FormCard key={f.id} f={f} onEdit={setEditingForm} />
             ))}
           </div>
         </>
@@ -178,7 +254,10 @@ export default function FormsPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNew(false) }}
+        >
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Create form</h2>
@@ -217,6 +296,16 @@ export default function FormsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingForm && (
+        <EditFormModal
+          form={editingForm}
+          onClose={() => setEditingForm(null)}
+          onSave={(patch) => edit.mutate({ formId: editingForm.id, ...patch })}
+          saving={edit.isPending}
+          error={edit.isError ? edit.error.message : null}
+        />
       )}
     </div>
   )

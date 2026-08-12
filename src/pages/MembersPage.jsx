@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchMembers, inviteMember, ROLES } from '../features/members/api'
+import { fetchMembers, inviteMember, updateMember, suspendMember, ROLES } from '../features/members/api'
 import { fetchDepartments } from '../features/departments/api'
 
 const AVATAR_COLORS = [
@@ -30,7 +30,7 @@ const statusStyle = {
 const STATUS_TABS = ['Active', 'Pending', 'Suspended']
 const PAGE_SIZE = 5
 
-function MemberCard({ m }) {
+function MemberCard({ m, onEdit, onSuspend }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
@@ -55,6 +55,82 @@ function MemberCard({ m }) {
       </div>
 
       <p className="text-xs text-gray-400 pt-3 border-t border-gray-50">Joined {m.joined}</p>
+
+      <div className="flex gap-2 pt-3 border-t border-gray-50">
+        <button
+          onClick={() => onEdit(m)}
+          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+        >
+          Edit
+        </button>
+        {m.status !== 'Suspended' && (
+          <button
+            onClick={() => onSuspend(m)}
+            className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition"
+          >
+            Suspend
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, error }) {
+  const [title, setTitle] = useState(member.title ?? '')
+  const [role, setRole] = useState(member.role)
+  const [department, setDepartment] = useState(member.department || '')
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Edit member</h2>
+          <p className="text-sm text-gray-400 mt-0.5">{member.name}</p>
+        </div>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Job title"
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+        >
+          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+        >
+          <option value="">No department</option>
+          {departmentOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({ title, role, department })}
+            disabled={saving}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -69,6 +145,8 @@ export default function MembersPage() {
   const [newEmail, setNewEmail] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newDepartment, setNewDepartment] = useState('')
+  const [editingMember, setEditingMember] = useState(null)
+  const [suspendError, setSuspendError] = useState('')
 
   const queryClient = useQueryClient()
   const members = useQuery({ queryKey: ['members'], queryFn: fetchMembers })
@@ -86,7 +164,30 @@ export default function MembersPage() {
     },
   })
 
-  const all = members.data ?? []
+  const edit = useMutation({
+    mutationFn: updateMember,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      setEditingMember(null)
+    },
+  })
+
+  const suspend = useMutation({
+    mutationFn: suspendMember,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      setSuspendError('')
+    },
+    onError: (err) => setSuspendError(err.message),
+  })
+
+  function handleSuspend(m) {
+    if (window.confirm(`Suspend ${m.name}? They'll lose access until reactivated.`)) {
+      suspend.mutate(m.id)
+    }
+  }
+
+  const all = useMemo(() => members.data ?? [], [members.data])
   const counts = {
     Active: all.filter((m) => m.status === 'Active').length,
     Pending: all.filter((m) => m.status === 'Pending').length,
@@ -173,13 +274,17 @@ export default function MembersPage() {
         </select>
       </div>
 
+      {suspendError && (
+        <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-5">{suspendError}</p>
+      )}
+
       {members.isLoading && (
         <p className="text-center py-12 text-sm text-gray-400">Loading members...</p>
       )}
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {visible.map((m) => (
-          <MemberCard key={m.id} m={m} />
+          <MemberCard key={m.id} m={m} onEdit={setEditingMember} onSuspend={handleSuspend} />
         ))}
       </div>
 
@@ -227,7 +332,10 @@ export default function MembersPage() {
       )}
 
       {showInvite && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-20 flex items-start justify-center bg-gray-900/40 backdrop-blur-sm overflow-y-auto py-8"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowInvite(false) }}
+        >
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 mx-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Invite member</h2>
@@ -281,6 +389,17 @@ export default function MembersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingMember && (
+        <EditMemberModal
+          member={editingMember}
+          departmentOptions={(departments.data ?? []).map((d) => d.name)}
+          onClose={() => setEditingMember(null)}
+          onSave={(patch) => edit.mutate({ memberId: editingMember.id, ...patch })}
+          saving={edit.isPending}
+          error={edit.isError ? edit.error.message : null}
+        />
       )}
     </div>
   )

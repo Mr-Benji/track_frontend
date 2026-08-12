@@ -426,7 +426,7 @@ export default function TasksPage({ user }) {
   const tasks = useQuery({ queryKey: ['tasks'], queryFn: fetchTasks })
   const projectsQ = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const membersQ = useQuery({ queryKey: ['members'], queryFn: fetchMembers })
-  const projects = projectsQ.data ?? []
+  const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data])
   const members = membersQ.data ?? []
 
   const advance = useMutation({
@@ -442,7 +442,7 @@ export default function TasksPage({ user }) {
     },
   })
 
-  const all = tasks.data ?? []
+  const all = useMemo(() => tasks.data ?? [], [tasks.data])
   const overdueCount = all.filter((t) => t.overdue).length
   const selectedTask = all.find((t) => t.id === selectedId)
   const previewTask = all.find((t) => t.id === previewId)
