@@ -334,7 +334,7 @@ export default function TaskDetailModal({ task, user, onClose }) {
               <FieldLabel>Project</FieldLabel>
               <select
                 value={task.projectId ?? ''}
-                onChange={(e) => patch.mutate({ id: task.id, projectId: e.target.value ? Number(e.target.value) : null })}
+                onChange={(e) => patch.mutate({ id: task.id, projectId: e.target.value || null })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
                 <option value="">No project</option>

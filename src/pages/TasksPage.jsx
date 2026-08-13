@@ -291,7 +291,7 @@ function NewTaskModal({ onClose, onSubmit, creating, error }) {
     return {
       title: title.trim(),
       description,
-      projectId: Number(projectId),
+      projectId,
       priority,
       assignees,
       startDate,

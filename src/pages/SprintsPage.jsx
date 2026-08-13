@@ -156,7 +156,7 @@ function SprintTaskCreator({ sprint }) {
 
   function submit(e) {
     e.preventDefault()
-    create.mutate({ title: title.trim(), projectId: Number(projectId), startDate: dueDate, dueDate, sprintId: sprint.id })
+    create.mutate({ title: title.trim(), projectId, startDate: dueDate, dueDate, sprintId: sprint.id })
   }
 
   return (
