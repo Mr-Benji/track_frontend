@@ -1,6 +1,6 @@
 import { apiClient } from '../../lib/apiClient'
 
-export const ROLES = ['Admin', 'Manager', 'User']
+export const ROLES = ['Admin', 'User']
 
 export async function fetchMembers() {
   return apiClient.get('/members')
