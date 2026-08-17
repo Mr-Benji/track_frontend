@@ -60,6 +60,10 @@ export async function createProject({
 }
 
 export async function updateProject({ projectId, ...patch }) {
+  // start/end are a tri-state merge-patch on the backend: omitted/null leaves
+  // the date untouched, "" clears it, anything else is parsed as a new date.
+  // The edit form already sends "" when a date input is cleared, so no
+  // conversion is needed here — passing patch through as-is is correct.
   const project = await apiClient.patch(`/projects/${projectId}`, patch)
   return withDisplayDates(project)
 }
