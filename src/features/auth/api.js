@@ -12,3 +12,9 @@ export async function activateRequest({ email, password }) {
   setToken(data.token)
   return data
 }
+
+export async function registerRequest({ fullName, email, password }) {
+  const data = await apiClient.post('/auth/register', { fullName, email, password })
+  setToken(data.token)
+  return data
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import ActivatePage from './pages/ActivatePage'
 import DashboardPage from './pages/DashboardPage'
 import { clearToken } from './lib/token'
@@ -15,6 +16,7 @@ function activateEmailFromHash() {
 export default function App() {
   const [user, setUser] = useState(null)
   const [showActivate, setShowActivate] = useState(() => window.location.hash.startsWith('#activate'))
+  const [showRegister, setShowRegister] = useState(() => window.location.hash.startsWith('#register'))
 
   if (!user) {
     if (showActivate) {
@@ -32,7 +34,29 @@ export default function App() {
         />
       )
     }
-    return <LoginPage onLogin={setUser} />
+    if (showRegister) {
+      return (
+        <RegisterPage
+          onRegistered={(u) => {
+            window.location.hash = ''
+            setUser(u)
+          }}
+          onBackToLogin={() => {
+            window.location.hash = ''
+            setShowRegister(false)
+          }}
+        />
+      )
+    }
+    return (
+      <LoginPage
+        onLogin={setUser}
+        onCreateAccount={() => {
+          window.location.hash = 'register'
+          setShowRegister(true)
+        }}
+      />
+    )
   }
 
   return (
