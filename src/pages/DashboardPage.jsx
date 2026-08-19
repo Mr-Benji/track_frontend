@@ -246,9 +246,9 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
   }
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* ---------- Sidebar ---------- */}
-      <aside className="w-56 flex flex-col py-6 px-3 bg-white border-r border-gray-100">
+    <div className="h-screen flex bg-gray-50 overflow-hidden">
+      {/* ---------- Sidebar — pinned to the viewport, never scrolls with the page ---------- */}
+      <aside className="w-56 flex flex-col py-6 px-3 bg-white border-r border-gray-100 overflow-y-auto">
         {/* Brand */}
         <div className="flex items-center gap-3 px-3 mb-8">
           <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center font-bold text-sm">
@@ -281,7 +281,7 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
       {/* ---------- Main column ---------- */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* ---------- Top bar (US-51, US-53) ---------- */}
-        <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-gray-100">
+        <header className="shrink-0 flex items-center justify-between px-8 py-4 bg-white border-b border-gray-100">
           <WorkspaceSwitcher workspace={workspace} workspaces={workspaces} onChange={setWorkspace} onCreate={addWorkspace} />
           <ProfileMenu user={user} onLogout={onLogout} onUpdateUser={onUpdateUser} />
         </header>
