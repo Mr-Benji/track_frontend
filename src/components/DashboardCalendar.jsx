@@ -31,7 +31,7 @@ function DayCell({ day, tasksForDay, isToday, maxVisible, onMore }) {
   const overflow = tasksForDay.length - visible.length
 
   return (
-    <div className={`min-h-[56px] p-1 rounded-lg border ${day.inMonth ? 'bg-white border-gray-100' : 'bg-gray-50/60 border-transparent'}`}>
+    <div className={`min-h-[72px] p-1.5 rounded-lg border ${day.inMonth ? 'bg-white border-gray-100' : 'bg-gray-50/60 border-transparent'}`}>
       <div className="flex justify-end">
         <span
           className={`w-5 h-5 flex items-center justify-center text-[11px] rounded-full ${
@@ -150,7 +150,7 @@ export default function DashboardCalendar({ tasks }) {
   }, [tasks, pointer])
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 max-w-lg">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 h-full">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 className="text-sm font-bold text-gray-900">{title}</h2>
         <div className="flex items-center gap-1.5">
@@ -213,7 +213,7 @@ export default function DashboardCalendar({ tasks }) {
                 day={day}
                 tasksForDay={tasksOn(day.date)}
                 isToday={sameDay(day.date, today)}
-                maxVisible={view === 'Week' ? 3 : 2}
+                maxVisible={view === 'Week' ? 4 : 3}
                 onMore={setPopoverDate}
               />
             ))}

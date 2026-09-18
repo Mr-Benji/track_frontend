@@ -11,6 +11,51 @@ import { isWithinWeek, sameDay } from '../lib/dateUtils'
 const initials = (name = '') =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
+function SunIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  )
+}
+
+function ChecklistIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="5" y="3" width="14" height="18" rx="1.5" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+function ClockIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </svg>
+  )
+}
+
+function AlertTriangleIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M10.6 3.9 2.4 18a1.6 1.6 0 0 0 1.4 2.4h16.4a1.6 1.6 0 0 0 1.4-2.4L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z" />
+      <path d="M12 9.5v4M12 17h.01" />
+    </svg>
+  )
+}
+
+function CalendarIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </svg>
+  )
+}
+
 const avatarColors = [
   'bg-sky-100 text-sky-600',
   'bg-violet-100 text-violet-600',
@@ -37,7 +82,7 @@ const statusStyle = {
 }
 
 // US-01/02/03 — tinted dashboard widgets: today's tasks, this week's deadlines, overdue.
-function TintedStatCard({ label, value, sub, tone, warn }) {
+function TintedStatCard({ label, value, sub, tone, warn, icon: Icon }) {
   const tones = {
     blue: 'bg-blue-50 text-blue-600',
     amber: 'bg-amber-50 text-amber-600',
@@ -46,13 +91,8 @@ function TintedStatCard({ label, value, sub, tone, warn }) {
   return (
     <div className={`rounded-2xl p-5 flex flex-col gap-3 ${tones[tone]} ${warn ? 'ring-1 ring-red-200' : ''}`}>
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{label}</p>
-        {warn && (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-red-600">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            Warning
-          </span>
-        )}
+        <p className="text-sm font-medium opacity-80">{label}</p>
+        {Icon && <Icon className="w-5 h-5 opacity-70" />}
       </div>
       <div>
         <p className="text-3xl font-bold mt-0.5">{value}</p>
@@ -182,20 +222,25 @@ function MeetingsPanel({ meetings, now }) {
   const thisWeekCount = meetings.filter((m) => isWithinWeek(m.date, now)).length
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-start justify-between mb-1">
-        <p className="font-semibold text-gray-800 text-sm">Meetings</p>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 h-full">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+            <CalendarIcon className="w-4.5 h-4.5" />
+          </div>
+          <p className="font-semibold text-gray-800 text-sm whitespace-nowrap">Meetings Overview</p>
+        </div>
         <button
           onClick={() => setShowNew(true)}
-          className="text-xs font-semibold text-sky-600 hover:text-sky-700 border border-sky-200 rounded-lg px-2.5 py-1"
+          className="text-xs font-semibold text-sky-600 hover:text-sky-700 border border-sky-200 rounded-lg px-2.5 py-1 shrink-0"
         >
-          + Create Meeting
+          Create Meeting
         </button>
       </div>
       <p className="text-xs text-gray-400 mb-4">{meetings.length} upcoming · {thisWeekCount} this week</p>
 
       {deleteError && (
-        <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{deleteError}</p>
+        <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mt-3">{deleteError}</p>
       )}
 
       <div className="space-y-2.5">
@@ -221,7 +266,12 @@ function MeetingsPanel({ meetings, now }) {
           </div>
         ))}
         {meetings.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-8">No upcoming meetings.</p>
+          <div className="flex flex-col items-center text-center py-10">
+            <div className="w-12 h-12 rounded-full bg-gray-50 text-gray-300 flex items-center justify-center mb-3">
+              <CalendarIcon className="w-6 h-6" />
+            </div>
+            <p className="text-sm text-gray-400">No upcoming meetings.</p>
+          </div>
         )}
       </div>
 
@@ -319,24 +369,8 @@ export default function HomePage({ user }) {
   return (
     <div className="space-y-7">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-gray-400 font-medium mb-1">{today}</p>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Good {getGreeting()}, {user?.name ?? 'there'}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Here's your workspace overview for today.</p>
-          <label className="inline-flex items-center gap-2 mt-3 bg-white border border-gray-200 rounded-full pl-3 pr-2 py-1.5 text-xs font-medium text-gray-600">
-            Choose your dashboard
-            <select
-              value={dashboardView}
-              onChange={(e) => setDashboardView(e.target.value)}
-              className="bg-transparent font-semibold text-gray-800 focus:outline-none"
-            >
-              {DASHBOARD_VIEWS.map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </label>
-        </div>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400 font-medium">{today}</p>
         {activeSprint && (
           <div className="hidden sm:flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium px-3 py-1.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
@@ -346,31 +380,52 @@ export default function HomePage({ user }) {
       </div>
 
       {isLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-2xl bg-gray-100 animate-pulse h-32" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-2xl bg-gray-100 animate-pulse h-40" />
           ))}
         </div>
       )}
 
       {!isLoading && (
         <>
-          {/* ── Stat cards (US-01, US-02, US-03) ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* ── Greeting + stat cards (US-01, US-02, US-03) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-2xl p-5 flex flex-col gap-3 bg-white border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
+                  <SunIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 leading-none">Hi, {user?.name ?? 'there'}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">Choose your dashboard</p>
+                </div>
+              </div>
+              <select
+                value={dashboardView}
+                onChange={(e) => setDashboardView(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              >
+                {DASHBOARD_VIEWS.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
             <TintedStatCard
               tone="blue"
+              icon={ChecklistIcon}
               label="Today's Tasks"
               value={todayTasks.length}
               sub={`${overdueTasks.length} overdue`}
             />
             <TintedStatCard
               tone="amber"
+              icon={ClockIcon}
               label="Week Deadlines"
               value={weekTasks.length}
               sub="Due this week"
             />
             <TintedStatCard
               tone="red"
+              icon={AlertTriangleIcon}
               label="Overdue Tasks"
               value={overdueTasks.length}
               sub="Need attention"
@@ -378,8 +433,13 @@ export default function HomePage({ user }) {
             />
           </div>
 
-          {/* ── Dashboard calendar preview (US-04) ── */}
-          <DashboardCalendar tasks={tasks} />
+          {/* ── Calendar + meetings (US-04) ── */}
+          <div className={`grid gap-4 ${dashboardView === 'Projects & Meetings' ? 'lg:grid-cols-3' : ''}`}>
+            <div className={dashboardView === 'Projects & Meetings' ? 'lg:col-span-2' : ''}>
+              <DashboardCalendar tasks={tasks} />
+            </div>
+            {dashboardView === 'Projects & Meetings' && <MeetingsPanel meetings={meetings} now={now} />}
+          </div>
 
           {/* ── Main grid — layout responds to the chosen dashboard view (US-05) ── */}
           <div className={`grid gap-4 ${dashboardView === 'Projects & Meetings' ? 'lg:grid-cols-5' : ''}`}>
@@ -450,11 +510,6 @@ export default function HomePage({ user }) {
             )}
           </div>
 
-          {/* ── Meetings — the one section unique to "Projects & Meetings" ── */}
-          {dashboardView === 'Projects & Meetings' && (
-            <MeetingsPanel meetings={meetings} now={now} />
-          )}
-
           {/* ── Team strip ── */}
           {members.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -483,11 +538,4 @@ export default function HomePage({ user }) {
       )}
     </div>
   )
-}
-
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h < 13) return 'morning'
-  if (h < 17) return 'afternoon'
-  return 'evening'
 }
