@@ -10,6 +10,57 @@ import TeamAnalyticsPage from './TeamAnalyticsPage'
 
 const INITIAL_WORKSPACES = ['Health Intelligence Center', 'Demo Workspace']
 
+const navIcons = {
+  Home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" />
+    </svg>
+  ),
+  Members: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <path d="M16 6.2a3 3 0 0 1 0 5.6" />
+      <path d="M18 14c2.3.4 4 2.3 4 4.6" />
+    </svg>
+  ),
+  Departments: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="3" width="10" height="18" rx="1" />
+      <path d="M14 8h6v13" />
+      <path d="M7 7h.01M11 7h.01M7 11h.01M11 11h.01M7 15h.01M11 15h.01" />
+    </svg>
+  ),
+  Projects: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7a1 1 0 0 1 1-1h4.4l1.6 2H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" />
+    </svg>
+  ),
+  Sprints: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 3 5 13h5l-1 8 8-10h-5l1-8Z" />
+    </svg>
+  ),
+  Tasks: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="3" width="14" height="18" rx="1.5" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  ),
+  Forms: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+      <path d="M9 12h6M9 16h6M9 8h2" />
+    </svg>
+  ),
+  'Team Analytics': (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20V10M11 20V4M18 20v-7" />
+    </svg>
+  ),
+}
+
 const initials = (name = '') =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
@@ -266,12 +317,13 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
             <button
               key={item}
               onClick={() => setPage(item)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition border-l-2 ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition border-l-2 ${
                 page === item
                   ? 'bg-sky-50 text-sky-600 border-sky-500'
                   : 'text-gray-500 border-transparent hover:bg-gray-50 hover:text-gray-700'
               }`}
             >
+              <span className="w-4 h-4 shrink-0">{navIcons[item]}</span>
               {item}
             </button>
           ))}

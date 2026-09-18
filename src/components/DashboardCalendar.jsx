@@ -19,8 +19,8 @@ const statusDot = {
 
 function TaskChip({ task }) {
   return (
-    <div className="flex items-center gap-1.5 px-1.5 py-1 rounded-lg bg-blue-50 border-l-2 border-blue-400 text-[11px] text-blue-700 font-medium truncate">
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot[task.status] ?? 'bg-gray-400'}`} />
+    <div className="flex items-center gap-1 px-1 py-0.5 rounded bg-blue-50 border-l-2 border-blue-400 text-[10px] text-blue-700 font-medium truncate">
+      <span className={`w-1 h-1 rounded-full shrink-0 ${statusDot[task.status] ?? 'bg-gray-400'}`} />
       <span className="truncate">{task.title}</span>
     </div>
   )
@@ -31,10 +31,10 @@ function DayCell({ day, tasksForDay, isToday, maxVisible, onMore }) {
   const overflow = tasksForDay.length - visible.length
 
   return (
-    <div className={`min-h-[92px] p-1.5 rounded-xl border ${day.inMonth ? 'bg-white border-gray-100' : 'bg-gray-50/60 border-transparent'}`}>
+    <div className={`min-h-[56px] p-1 rounded-lg border ${day.inMonth ? 'bg-white border-gray-100' : 'bg-gray-50/60 border-transparent'}`}>
       <div className="flex justify-end">
         <span
-          className={`w-6 h-6 flex items-center justify-center text-xs rounded-full ${
+          className={`w-5 h-5 flex items-center justify-center text-[11px] rounded-full ${
             isToday
               ? 'bg-blue-600 text-white font-semibold'
               : day.inMonth
@@ -45,14 +45,14 @@ function DayCell({ day, tasksForDay, isToday, maxVisible, onMore }) {
           {day.date.getDate()}
         </span>
       </div>
-      <div className="mt-1 space-y-1">
+      <div className="mt-0.5 space-y-0.5">
         {visible.map((t) => (
           <TaskChip key={t.id} task={t} />
         ))}
         {overflow > 0 && (
           <button
             onClick={() => onMore(day.date)}
-            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-1.5"
+            className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 px-1"
           >
             +{overflow} more
           </button>
@@ -150,16 +150,16 @@ export default function DashboardCalendar({ tasks }) {
   }, [tasks, pointer])
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="font-bold text-gray-900">{title}</h2>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl border border-gray-200 p-0.5 bg-gray-50">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 max-w-lg">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+        <div className="flex items-center gap-1.5">
+          <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             {VIEWS.map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                className={`px-2 py-1 text-[11px] font-semibold rounded-md transition ${
                   view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -168,13 +168,13 @@ export default function DashboardCalendar({ tasks }) {
             ))}
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={goPrev} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+            <button onClick={goPrev} className="w-6 h-6 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs">
               ‹
             </button>
-            <button onClick={goToday} className="px-3 h-8 flex items-center rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+            <button onClick={goToday} className="px-2 h-6 flex items-center rounded-md border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">
               Today
             </button>
-            <button onClick={goNext} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+            <button onClick={goNext} className="w-6 h-6 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs">
               ›
             </button>
           </div>
@@ -182,38 +182,38 @@ export default function DashboardCalendar({ tasks }) {
       </div>
 
       {view === 'List' ? (
-        <div className="space-y-2 max-h-[420px] overflow-y-auto">
+        <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
           {listItems.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="w-14 shrink-0 text-xs font-semibold text-gray-500">
+            <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 border border-gray-100">
+              <div className="w-12 shrink-0 text-[11px] font-semibold text-gray-500">
                 {new Date(t.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>
-              <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[t.status] ?? 'bg-gray-400'}`} />
-              <p className="text-sm font-medium text-gray-800 truncate flex-1">{t.title}</p>
-              <p className="text-xs text-gray-400 shrink-0">{t.assignee}</p>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot[t.status] ?? 'bg-gray-400'}`} />
+              <p className="text-xs font-medium text-gray-800 truncate flex-1">{t.title}</p>
+              <p className="text-[11px] text-gray-400 shrink-0">{t.assignee}</p>
             </div>
           ))}
           {listItems.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-10">No tasks due this month.</p>
+            <p className="text-xs text-gray-400 text-center py-8">No tasks due this month.</p>
           )}
         </div>
       ) : (
         <div>
           <div className="grid grid-cols-7 mb-1">
             {DAY_LABELS.map((d) => (
-              <div key={d} className="text-center text-[11px] font-semibold text-gray-400 py-1">
+              <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-0.5">
                 {d}
               </div>
             ))}
           </div>
-          <div className={`grid grid-cols-7 gap-1.5 ${view === 'Week' ? '' : ''}`}>
+          <div className="grid grid-cols-7 gap-1">
             {weeks.flat().map((day, i) => (
               <DayCell
                 key={i}
                 day={day}
                 tasksForDay={tasksOn(day.date)}
                 isToday={sameDay(day.date, today)}
-                maxVisible={view === 'Week' ? 5 : 3}
+                maxVisible={view === 'Week' ? 3 : 2}
                 onMore={setPopoverDate}
               />
             ))}
