@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, Legend,
+  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
 } from 'recharts'
 import { fetchMembers } from '../features/members/api'
 import { fetchTasks } from '../features/tasks/api'
@@ -13,6 +13,19 @@ const initials = (name) =>
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const PIE_COLORS = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd']
+
+function ChartLegend({ items }) {
+  return (
+    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+          {item.label}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // Members joined per month, for whichever months are actually present in the data.
 function buildJoinsPerMonth(members) {
@@ -78,7 +91,7 @@ export default function TeamAnalyticsPage() {
     { name: 'Interns', value: all.filter((m) => m.title === 'Intern').length },
     { name: 'Students', value: all.filter((m) => (m.title ?? '').includes('Student')).length },
     { name: 'Staff', value: all.filter((m) => m.title !== 'Intern' && !(m.title ?? '').includes('Student')).length },
-  ]
+  ].filter((r) => r.value > 0)
 
   const joinsPerMonth = buildJoinsPerMonth(all)
   const tasksPerDept = buildTasksPerDept(allTasks, allProjects)
@@ -127,40 +140,52 @@ export default function TeamAnalyticsPage() {
           <p className="font-semibold text-gray-700 text-sm mb-4">
             Tasks by department
           </p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={tasksPerDept}>
-              <XAxis dataKey="dept" fontSize={12} />
-              <YAxis fontSize={12} allowDecimals={false} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="completed" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="open" fill="#bae6fd" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {tasksPerDept.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-20">No tasks yet</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={tasksPerDept}>
+                  <XAxis dataKey="dept" fontSize={12} />
+                  <YAxis fontSize={12} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="completed" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="open" fill="#bae6fd" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <ChartLegend items={[{ label: 'Completed', color: '#0ea5e9' }, { label: 'Open', color: '#bae6fd' }]} />
+            </>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="font-semibold text-gray-700 text-sm mb-4">
             Members by role
           </p>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={roleData}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={55}
-                outerRadius={85}
-                paddingAngle={3}
-              >
-                {roleData.map((entry, i) => (
-                  <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          {roleData.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-20">No members yet</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={roleData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={3}
+                  >
+                    {roleData.map((entry, i) => (
+                      <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <ChartLegend items={roleData.map((r, i) => ({ label: r.name, color: PIE_COLORS[i % PIE_COLORS.length] }))} />
+            </>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-5">

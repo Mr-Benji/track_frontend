@@ -169,12 +169,7 @@ export default function FormsPage() {
   })
 
   const all = forms.data ?? []
-
-  const myResponses = [
-    { id: 1, form: 'Weekly Team Check-in', submitted: 'Jul 14, 9:20 AM', status: 'Reviewed' },
-    { id: 2, form: 'Internship Feedback Survey', submitted: 'Jul 10, 3:45 PM', status: 'Pending' },
-    { id: 3, form: 'Equipment Request', submitted: 'Jul 02, 11:05 AM', status: 'Approved' },
-  ]
+  const myResponses = []
 
   const respStyle = {
     Reviewed: 'bg-sky-50 text-sky-600 border-sky-200',
@@ -218,6 +213,12 @@ export default function FormsPage() {
           {forms.isLoading && (
             <p className="text-center py-12 text-sm text-gray-400">Loading forms...</p>
           )}
+          {!forms.isLoading && all.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-gray-200 py-16 text-center">
+              <p className="font-semibold text-gray-700">No forms yet</p>
+              <p className="text-sm text-gray-400 mt-1">Create a form to start collecting responses.</p>
+            </div>
+          )}
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
             {all.map((f) => (
               <FormCard key={f.id} f={f} onEdit={setEditingForm} />
@@ -227,30 +228,37 @@ export default function FormsPage() {
       )}
 
       {tab === 'My responses' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                <th className="px-6 py-4 font-semibold">Form</th>
-                <th className="px-6 py-4 font-semibold">Submitted</th>
-                <th className="px-6 py-4 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {myResponses.map((r) => (
-                <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/70">
-                  <td className="px-6 py-4 font-semibold text-gray-800">{r.form}</td>
-                  <td className="px-6 py-4 text-gray-500">{r.submitted}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${respStyle[r.status]}`}>
-                      {r.status}
-                    </span>
-                  </td>
+        myResponses.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-200 py-16 text-center">
+            <p className="font-semibold text-gray-700">No responses yet</p>
+            <p className="text-sm text-gray-400 mt-1">Forms you fill out will show up here.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                  <th className="px-6 py-4 font-semibold">Form</th>
+                  <th className="px-6 py-4 font-semibold">Submitted</th>
+                  <th className="px-6 py-4 font-semibold">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {myResponses.map((r) => (
+                  <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/70">
+                    <td className="px-6 py-4 font-semibold text-gray-800">{r.form}</td>
+                    <td className="px-6 py-4 text-gray-500">{r.submitted}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${respStyle[r.status]}`}>
+                        {r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {showNew && (
