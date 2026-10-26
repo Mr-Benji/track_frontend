@@ -315,7 +315,7 @@ export default function TaskDetailModal({ task, user, onClose }) {
                 <input
                   type="date"
                   defaultValue={task.startDate ?? ''}
-                  onBlur={(e) => e.target.value !== (task.startDate ?? '') && patch.mutate({ id: task.id, startDate: e.target.value || null })}
+                  onBlur={(e) => e.target.value !== (task.startDate ?? '') && patch.mutate({ id: task.id, startDate: e.target.value })}
                   className="w-full px-2 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
@@ -334,10 +334,9 @@ export default function TaskDetailModal({ task, user, onClose }) {
               <FieldLabel>Project</FieldLabel>
               <select
                 value={task.projectId ?? ''}
-                onChange={(e) => patch.mutate({ id: task.id, projectId: e.target.value || null })}
+                onChange={(e) => patch.mutate({ id: task.id, projectId: e.target.value })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                <option value="">No project</option>
                 {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               {project && <p className="text-[11px] text-gray-400 mt-1">Currently in {project.name}</p>}

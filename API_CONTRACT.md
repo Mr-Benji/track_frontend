@@ -49,9 +49,12 @@ Frontend page for this: `<FRONTEND_URL>/#activate?email=<url-encoded email>` (se
 
 ### `GET /tasks` → `Task[]`
 ### `PATCH /tasks/:id/status` — `{ status, author }` → `Task` (server appends the activity-log entry)
-### `PATCH /tasks/:id` — partial merge-patch → `Task`
+### `PATCH /tasks/:id` — partial merge-patch → `Task`, any of `{ title, description, narrative, priority, startDate, dueDate, isDraft, projectId }`
+- `startDate` is a tri-state, same as project `start`/`end`: omitted/`null` leaves it untouched, `""` clears it, anything else is parsed as a new date (invalid → 400).
+- `projectId` moves the task to another project. Its status carries over to a same-named stage on the new project if one exists, otherwise it resets to that project's first stage. If the task was in a sprint tied to the old project, it returns to the backlog (`sprintId: null`). A task can't be detached from all projects — `null` is a no-op.
 ### `DELETE /tasks/:id` → confirmed working (204), wired in `TaskDetailModal`
 ### `POST /tasks` — `{ title, description, projectId, assignees[], priority, startDate, dueDate, isDraft, sprintId }` → new `Task`, `status: "To Do"`
+- `sprintId` optional — links the new task to that sprint. 404 if the sprint doesn't exist; 409 if the sprint belongs to a different project than `projectId`.
 ### `POST /tasks/:id/assignees` — `{ name }` → `Task`
 ### `DELETE /tasks/:id/assignees/:name` → `Task`
 ### `POST /tasks/:id/comments` — `{ author, text }` → `Comment`
