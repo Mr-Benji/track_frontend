@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchTasks, updateTaskStatus, createTask } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
+import { projectStatuses, combinedStatuses } from '../features/projects/stages'
 import { fetchMembers } from '../features/members/api'
 import TaskDetailModal from '../components/TaskDetailModal'
 import TaskPreviewPopover from '../components/TaskPreviewPopover'
@@ -46,12 +47,11 @@ const statusStyle = {
   Done: 'bg-emerald-100 text-emerald-600',
 }
 
-const STATUSES = ['To Do', 'In Progress', 'Done']
 const VIEWS = ['Kanban', 'Table', 'Calendar']
 
 const progressColor = { 'To Do': 'bg-gray-300', 'In Progress': 'bg-sky-500', Done: 'bg-emerald-500' }
 
-function TaskCard({ t, onStatusChange, changingStatus, onOpen }) {
+function TaskCard({ t, statuses, onStatusChange, changingStatus, onOpen }) {
   return (
     <div
       onClick={() => onOpen(t)}
@@ -99,7 +99,7 @@ function TaskCard({ t, onStatusChange, changingStatus, onOpen }) {
         onChange={(e) => onStatusChange(t, e.target.value)}
         className="w-full text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-50"
       >
-        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
     </div>
   )
@@ -220,7 +220,7 @@ function FilterBar({
           className="px-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
         >
           <option value="">All Statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {combinedStatuses(projects).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
         <select
@@ -468,6 +468,14 @@ export default function TasksPage({ user }) {
     return [...list].sort((a, b) => factor * ((a.createdAt ?? '') < (b.createdAt ?? '') ? -1 : (a.createdAt ?? '') > (b.createdAt ?? '') ? 1 : 0))
   }, [all, search, includeArchived, archivedProjectIds, myTasksOnly, user, filters, sortDir])
 
+  // Kanban columns follow the filtered project's workflow stages, or every
+  // project's stages combined when no project is selected.
+  const boardStatuses = useMemo(() => {
+    const selected = projects.find((p) => String(p.id) === String(filters.projectId))
+    return selected ? projectStatuses(selected) : combinedStatuses(projects)
+  }, [projects, filters.projectId])
+  const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
+
   function updateFilter(key, value) {
     setFilters((prev) => ({ ...prev, [key]: value }))
   }
@@ -527,11 +535,11 @@ export default function TasksPage({ user }) {
       )}
 
       {!tasks.isLoading && view === 'Kanban' && (
-        <div className="grid md:grid-cols-3 gap-4 items-start">
-          {STATUSES.map((st) => {
+        <div className="grid md:grid-flow-col md:auto-cols-[minmax(240px,1fr)] gap-4 items-start overflow-x-auto">
+          {boardStatuses.map((st) => {
             const items = visible.filter((t) => t.status === st)
             return (
-              <div key={st} className={`bg-gray-50/80 rounded-2xl border border-gray-100 border-t-4 ${columnAccent[st]} p-3`}>
+              <div key={st} className={`bg-gray-50/80 rounded-2xl border border-gray-100 border-t-4 ${columnAccent[st] ?? 'border-t-violet-300'} p-3`}>
                 <div className="flex items-center justify-between px-2 py-1.5 mb-2">
                   <p className="text-sm font-bold text-gray-700">{st}</p>
                   <span className="px-2 py-0.5 rounded-full text-xs bg-white border border-gray-200 text-gray-500 font-semibold">
@@ -543,6 +551,7 @@ export default function TasksPage({ user }) {
                     <TaskCard
                       key={t.id}
                       t={t}
+                      statuses={projectStatuses(projectById.get(t.projectId))}
                       changingStatus={advance.isPending && advance.variables?.id === t.id}
                       onStatusChange={(task, status) => advance.mutate({ id: task.id, status, author: user?.name })}
                       onOpen={(task) => setPreviewId(task.id)}

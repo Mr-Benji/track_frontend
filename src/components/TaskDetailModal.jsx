@@ -15,12 +15,12 @@ import {
   removeAssignee,
 } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
+import { projectStatuses } from '../features/projects/stages'
 import { fetchMembers } from '../features/members/api'
 import { formatDateTime } from '../lib/dateUtils'
 import AssigneePicker from './AssigneePicker'
 import RichTextEditor from './RichTextEditor'
 
-const STATUSES = ['To Do', 'In Progress', 'Done']
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low']
 
 function Section({ title, children }) {
@@ -284,7 +284,7 @@ export default function TaskDetailModal({ task, user, onClose }) {
                 onChange={(e) => setStatus.mutate({ id: task.id, status: e.target.value, author })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                {STATUSES.map((s) => <option key={s}>{s}</option>)}
+                {projectStatuses(project).map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
 

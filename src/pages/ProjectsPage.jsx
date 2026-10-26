@@ -244,7 +244,12 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
   function addStage() {
     const name = stageInput.trim()
     if (name && !stages.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
-      setStages((prev) => [...prev, { id: Date.now(), name, isDefault: false }])
+      // The backend always keeps Done last, so show new stages just before it.
+      setStages((prev) => {
+        const doneIndex = prev.findIndex((s) => s.name === 'Done')
+        const at = doneIndex === -1 ? prev.length : doneIndex
+        return [...prev.slice(0, at), { id: Date.now(), name, isDefault: false }, ...prev.slice(at)]
+      })
     }
     setStageInput('')
   }

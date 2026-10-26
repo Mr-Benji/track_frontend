@@ -91,6 +91,12 @@ Frontend page for this: `<FRONTEND_URL>/#activate?email=<url-encoded email>` (se
 ### `GET /projects` → `Project[]`
 ### `POST /projects` — `{ name, departments[], leads[], description, start, end, workflowStages[], sprintsEnabled, files[], accessLevel }` → new `Project`, `status: "Planning"`, `trackingMode: "Manual"`
 ### `PATCH /projects/:id` — **confirmed: full merge-patch, all fields work** (`name`, `leads`, `departments`, `accessLevel` tested directly)
+
+**Workflow stages** (`workflowStages[]` on create and patch — only each item's `name` is read; `id`/`isDefault` are ignored):
+- `To Do`, `In Progress` and `Done` always exist and can't be removed. Custom stages are placed between `In Progress` and `Done`, in the order sent. Names are matched case-insensitively; duplicates are dropped.
+- `progressPercentage` is spread evenly from `To Do` (0) to `Done` (100) — e.g. one custom stage gives 0 / 33 / 67 / 100. A task's `progress` follows its stage, so adding or removing stages shifts it. Only `Done` (100) counts as completed.
+- On patch the list replaces the custom stages: one left out is removed — **409** if any task is still in it. Omit `workflowStages` (or send `null`) to leave stages untouched.
+- Tasks move between stages with `PATCH /tasks/:id/status`, using the stage name.
 ### `DELETE /projects/:id` — confirmed working (204). Not blocked by 409 in testing even with an empty project — presumably 409s if tasks reference it, untested.
 ### `POST /projects/:id/files` — `{ name }` → `File` (stub)
 ### `DELETE /projects/:id/files/:fileId` → `Project`
