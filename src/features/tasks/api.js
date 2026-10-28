@@ -1,4 +1,4 @@
-import { apiClient } from '../../lib/apiClient'
+import { apiClient, saveBlob } from '../../lib/apiClient'
 import { shortLabel } from '../../lib/dateUtils'
 
 // The backend already computes `progress` and `overdue` server-side; only
@@ -15,6 +15,12 @@ function present(task) {
 export async function fetchTasks() {
   const tasks = await apiClient.get('/tasks')
   return tasks.map(present)
+}
+
+// One task by id, whatever workspace it's in (used for shared/email links).
+export async function fetchTask(id) {
+  const task = await apiClient.get(`/tasks/${id}`)
+  return present(task)
 }
 
 export async function updateTaskStatus({ id, status, author }) {
@@ -78,8 +84,16 @@ export async function removeLink({ taskId, linkId }) {
   return present(task)
 }
 
-export async function addFile({ taskId, name }) {
-  return apiClient.post(`/tasks/${taskId}/files`, { name })
+// Uploads the picked File itself (max 10 MB).
+export async function addFile({ taskId, file }) {
+  const task = await apiClient.upload(`/tasks/${taskId}/files`, file)
+  return present(task)
+}
+
+// Files added before uploads existed have no content (size is null).
+export async function downloadFile({ taskId, file }) {
+  const blob = await apiClient.download(`/tasks/${taskId}/files/${file.id}/content`)
+  saveBlob(blob, file.name)
 }
 
 export async function removeFile({ taskId, fileId }) {

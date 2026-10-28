@@ -7,7 +7,7 @@ import { fetchSprints } from '../features/sprints/api'
 import { fetchMeetings, createMeeting, updateMeeting, deleteMeeting } from '../features/meetings/api'
 import DashboardCalendar from '../components/DashboardCalendar'
 import AssigneePicker from '../components/AssigneePicker'
-import { isWithinWeek, sameDay } from '../lib/dateUtils'
+import { isWithinWeek, sameDay, toISODate } from '../lib/dateUtils'
 
 const initials = (name = '') =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -194,7 +194,7 @@ function EditMeetingModal({ meeting, members, onClose, onSave, saving, error }) 
 }
 
 // Anyone can create a meeting; editing and deleting are admin-only on the backend.
-function MeetingsPanel({ meetings, members, now, isAdmin }) {
+function MeetingsPanel({ meetings: allMeetings, members, now, isAdmin }) {
   const queryClient = useQueryClient()
   const [showNew, setShowNew] = useState(false)
   const [title, setTitle] = useState('')
@@ -239,6 +239,10 @@ function MeetingsPanel({ meetings, members, now, isAdmin }) {
     }
   }
 
+  // The backend returns every meeting of the workspace (past ones too); this
+  // panel is about what's coming, so drop anything before today.
+  const todayISO = toISODate(now)
+  const meetings = allMeetings.filter((m) => m.date >= todayISO)
   const thisWeekCount = meetings.filter((m) => isWithinWeek(m.date, now)).length
 
   return (

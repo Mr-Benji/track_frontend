@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLogin } from '../features/auth/hooks/useLogin'
 
-export default function LoginPage({ onLogin, onCreateAccount }) {
+export default function LoginPage({ onLogin, onCreateAccount, onForgotPassword, notice }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [formError, setFormError] = useState('')
@@ -50,6 +50,9 @@ export default function LoginPage({ onLogin, onCreateAccount }) {
 
           <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
           <p className="text-sm text-gray-500 mt-1 mb-8">Sign in to your account to continue.</p>
+          {notice && (
+            <p className="-mt-4 mb-6 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">{notice}</p>
+          )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <div>
@@ -66,7 +69,7 @@ export default function LoginPage({ onLogin, onCreateAccount }) {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-xs font-semibold text-gray-600">Password</label>
-                <button type="button" className="text-xs text-sky-500 hover:text-sky-700 font-medium">
+                <button type="button" onClick={onForgotPassword} className="text-xs text-sky-500 hover:text-sky-700 font-medium">
                   Forgot password?
                 </button>
               </div>

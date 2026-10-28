@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchProjects, createProject, updateProject, deleteProject, ACCESS_LEVELS, DEFAULT_STAGES } from '../features/projects/api'
+import { fetchProjects, createProject, updateProject, deleteProject, downloadProjectFile, ACCESS_LEVELS, DEFAULT_STAGES } from '../features/projects/api'
+import { formatBytes } from '../lib/apiClient'
+import MemberSelect from '../components/MemberSelect'
 import { fetchDepartments } from '../features/departments/api'
 import RichTextEditor from '../components/RichTextEditor'
 
@@ -80,6 +82,36 @@ function LeadAvatars({ leads }) {
   )
 }
 
+// "N files" opens a list anyone who can see the project can download from
+// (old name-only files, with no size, are listed but not downloadable).
+function ProjectFilesChip({ p }) {
+  const [error, setError] = useState('')
+  return (
+    <details className="relative">
+      <summary className="list-none cursor-pointer px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500 hover:bg-gray-200">
+        {p.files.length} {p.files.length === 1 ? 'file' : 'files'} ▾
+      </summary>
+      <div className="absolute z-10 mt-1 w-56 bg-white rounded-xl border border-gray-100 shadow-lg p-1.5 space-y-0.5">
+        {p.files.map((f) => (
+          f.size != null ? (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => downloadProjectFile({ projectId: p.id, file: f }).catch((err) => setError(err.message))}
+              className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-sky-600 hover:bg-sky-50 truncate"
+            >
+              {f.name} <span className="text-gray-400">· {formatBytes(f.size)}</span>
+            </button>
+          ) : (
+            <p key={f.id} className="px-2 py-1.5 text-xs text-gray-500 truncate">{f.name}</p>
+          )
+        ))}
+        {error && <p className="px-2 py-1 text-[11px] text-red-500">{error}</p>}
+      </div>
+    </details>
+  )
+}
+
 function ProjectMeta({ p }) {
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
@@ -87,11 +119,7 @@ function ProjectMeta({ p }) {
       {p.sprintsEnabled && (
         <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 text-violet-600">Sprints</span>
       )}
-      {(p.files ?? []).length > 0 && (
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500">
-          {p.files.length} {p.files.length === 1 ? 'file' : 'files'}
-        </span>
-      )}
+      {(p.files ?? []).length > 0 && <ProjectFilesChip p={p} />}
       <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500">{p.accessLevel}</span>
     </div>
   )
@@ -236,6 +264,7 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
   const [stageInput, setStageInput] = useState('')
   const [sprintsEnabled, setSprintsEnabled] = useState(initialProject?.sprintsEnabled ?? false)
   const [files, setFiles] = useState(initialProject?.files ?? [])
+  const [fileError, setFileError] = useState('')
   const [accessLevel, setAccessLevel] = useState(initialProject?.accessLevel ?? ACCESS_LEVELS[0])
   const [archived, setArchived] = useState(initialProject?.archived ?? false)
 
@@ -262,8 +291,10 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
     setStageInput('')
   }
 
+  // Picked files keep the File itself; they're uploaded after the project is
+  // saved (see createProject/updateProject in features/projects/api.js).
   function addFiles(fileList) {
-    const picked = Array.from(fileList ?? []).map((f) => ({ id: Date.now() + Math.random(), name: f.name }))
+    const picked = Array.from(fileList ?? []).map((f) => ({ id: Date.now() + Math.random(), name: f.name, size: f.size, file: f }))
     setFiles((prev) => [...prev, ...picked])
   }
 
@@ -323,14 +354,14 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
             ))}
           </div>
           <div className="flex gap-2">
-            <input
+            <MemberSelect
               value={leadInput}
-              onChange={(e) => setLeadInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addLead())}
-              placeholder="Lead name"
-              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              onChange={setLeadInput}
+              exclude={leads}
+              placeholder="Select a lead..."
+              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
-            <button type="button" onClick={addLead} className="px-3 py-2 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Add</button>
+            <button type="button" onClick={addLead} disabled={!leadInput} className="px-3 py-2 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Add</button>
           </div>
         </div>
 
@@ -402,11 +433,27 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
           <div className="space-y-1.5">
             {files.map((f) => (
               <div key={f.id} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5">
-                <span className="text-xs text-gray-700 truncate">{f.name}</span>
+                {/* Saved files with content can be downloaded; size is null for old name-only files. */}
+                {!f.file && f.size != null && initialProject ? (
+                  <button
+                    type="button"
+                    onClick={() => downloadProjectFile({ projectId: initialProject.id, file: f }).catch((err) => setFileError(err.message))}
+                    className="text-xs text-sky-600 hover:underline truncate text-left"
+                    title="Download"
+                  >
+                    {f.name} <span className="text-gray-400">· {formatBytes(f.size)}</span>
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-700 truncate">
+                    {f.name}
+                    {f.file && <span className="text-gray-400"> · {formatBytes(f.size)} · uploads on save</span>}
+                  </span>
+                )}
                 <button type="button" onClick={() => setFiles((prev) => prev.filter((x) => x.id !== f.id))} className="text-gray-400 hover:text-red-500 text-xs shrink-0">✕</button>
               </div>
             ))}
             {files.length === 0 && <p className="text-xs text-gray-400">No files uploaded</p>}
+            {fileError && <p className="text-xs text-red-500">{fileError}</p>}
             <label className="block text-center text-xs font-semibold text-sky-600 border border-dashed border-sky-200 rounded-lg py-1.5 cursor-pointer hover:bg-sky-50">
               + Add file
               <input type="file" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
@@ -476,19 +523,25 @@ export default function ProjectsPage({ user }) {
   const projects = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const departments = useQuery({ queryKey: ['departments'], queryFn: fetchDepartments })
 
+  // onSettled, not onSuccess: if a file upload fails after the project itself
+  // was saved, the list must still show the saved project.
+  // A failed upload after the project saved closes the form and reports it
+  // on the page; the project and the files that did upload are kept.
   const create = useMutation({
     mutationFn: createProject,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-      setShowNew(false)
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    onSuccess: () => setShowNew(false),
+    onError: (err) => {
+      if (err.projectSaved) { setShowNew(false); setDeleteError(err.message) }
     },
   })
 
   const edit = useMutation({
     mutationFn: updateProject,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-      setEditingProject(null)
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    onSuccess: () => setEditingProject(null),
+    onError: (err) => {
+      if (err.projectSaved) { setEditingProject(null); setDeleteError(err.message) }
     },
   })
 

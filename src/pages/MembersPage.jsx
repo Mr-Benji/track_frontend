@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchMembers, inviteMember, updateMember, suspendMember, ROLES } from '../features/members/api'
 import { fetchDepartments } from '../features/departments/api'
+import { formatDate } from '../lib/dateUtils'
 
 const AVATAR_COLORS = [
   'bg-sky-100 text-sky-700',
@@ -54,7 +55,7 @@ function MemberCard({ m, onEdit, onSuspend }) {
         {m.department && <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-violet-50 text-violet-600">{m.department}</span>}
       </div>
 
-      <p className="text-xs text-gray-400 pt-3 border-t border-gray-50">Joined {m.joined}</p>
+      <p className="text-xs text-gray-400 pt-3 border-t border-gray-50">Joined {formatDate(m.joined)}</p>
 
       {onEdit && (
       <div className="flex gap-2 pt-3 border-t border-gray-50">
@@ -122,8 +123,13 @@ function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, e
           onChange={(e) => setStatus(e.target.value)}
           className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
         >
-          {member.status === 'Pending' && <option value="Pending">Pending</option>}
-          <option value="Active">Active</option>
+          {/* An invitee becomes Active only by activating (they have no
+              password yet), so Active isn't offered while Pending. */}
+          {member.status === 'Pending' ? (
+            <option value="Pending">Pending — waiting for activation</option>
+          ) : (
+            <option value="Active">Active</option>
+          )}
           <option value="Suspended">Suspended</option>
         </select>
         {error && (
@@ -149,7 +155,7 @@ function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, e
   )
 }
 
-export default function MembersPage({ user }) {
+export default function MembersPage({ user, onSelfChanged }) {
   // Inviting, editing and suspending members is admin-only on the backend.
   const isAdmin = user?.role === 'Admin'
   const [tab, setTab] = useState('Active')
@@ -182,8 +188,10 @@ export default function MembersPage({ user }) {
 
   const edit = useMutation({
     mutationFn: updateMember,
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['members'] })
+      // Editing yourself (role, department) changes what the app shows you.
+      if (updated.email === user?.email) onSelfChanged?.()
       setEditingMember(null)
     },
   })
@@ -244,7 +252,7 @@ export default function MembersPage({ user }) {
           <h1 className="text-2xl font-bold text-gray-900">
             Members <span className="text-gray-300 font-medium text-lg">({all.length})</span>
           </h1>
-          <p className="text-gray-500 mt-1">Manage your workspace members, roles, and permissions</p>
+          <p className="text-gray-500 mt-1">Manage your organisation's members, roles, and permissions</p>
         </div>
         {isAdmin && (
           <button

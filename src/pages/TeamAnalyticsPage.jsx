@@ -160,7 +160,7 @@ export default function TeamAnalyticsPage() {
 
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="font-semibold text-gray-700 text-sm mb-4">
-            Members by role
+            Members by job title
           </p>
           {roleData.length === 0 ? (
             <p className="text-xs text-gray-400 italic text-center py-20">No members yet</p>

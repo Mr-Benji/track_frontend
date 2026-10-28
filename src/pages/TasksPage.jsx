@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchTasks, updateTaskStatus, createTask } from '../features/tasks/api'
+import { fetchTasks, fetchTask, updateTaskStatus, createTask } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
 import { projectStatuses, combinedStatuses } from '../features/projects/stages'
 import { fetchMembers } from '../features/members/api'
@@ -244,11 +244,8 @@ function FilterBar({
         </button>
       </div>
 
+      {/* "All vs. mine" is the My Tasks pill above; a second checkbox for the same flag only confused it. */}
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-          <input type="checkbox" checked={!myTasksOnly} onChange={(e) => onToggleMyTasks(!e.target.checked)} className="accent-sky-500" />
-          Show all workspace tasks
-        </label>
         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
           <input type="checkbox" checked={includeArchived} onChange={(e) => onToggleArchived(e.target.checked)} className="accent-sky-500" />
           Include archived projects
@@ -417,7 +414,7 @@ export default function TasksPage({ user }) {
     return match ? match[1] : null
   })
   const [previewId, setPreviewId] = useState(null)
-  const [filters, setFilters] = useState({ projectId: '', assignee: '', status: '', priority: '' })
+  const [filterState, setFilters] = useState({ projectId: '', assignee: '', status: '', priority: '' })
   const [sortDir, setSortDir] = useState('desc')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [includeArchived, setIncludeArchived] = useState(false)
@@ -429,22 +426,45 @@ export default function TasksPage({ user }) {
   const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data])
   const members = membersQ.data ?? []
 
+  // A project filter left over from another workspace matches nothing here,
+  // so treat it as "All projects" instead of showing an empty board.
+  const filters = useMemo(() => {
+    const known = !projectsQ.data || projects.some((p) => String(p.id) === String(filterState.projectId))
+    return known ? filterState : { ...filterState, projectId: '' }
+  }, [filterState, projects, projectsQ.data])
+
+  // Status/create changes also move project counts and sprint progress.
+  const refreshAfterTaskChange = () => {
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
+    queryClient.invalidateQueries({ queryKey: ['sprints'] })
+  }
+
   const advance = useMutation({
     mutationFn: updateTaskStatus,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: refreshAfterTaskChange,
   })
 
   const create = useMutation({
     mutationFn: createTask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      refreshAfterTaskChange()
       setShowNew(false)
     },
   })
 
   const all = useMemo(() => tasks.data ?? [], [tasks.data])
   const overdueCount = all.filter((t) => t.overdue).length
-  const selectedTask = all.find((t) => t.id === selectedId)
+
+  // A shared link or a notification email can point at a task that isn't in
+  // this list (e.g. it belongs to another workspace) — load it on its own.
+  const linkedTask = useQuery({
+    queryKey: ['task', selectedId],
+    queryFn: () => fetchTask(selectedId),
+    enabled: !!selectedId && !tasks.isLoading && !all.some((t) => t.id === selectedId),
+    retry: false,
+  })
+  const selectedTask = all.find((t) => t.id === selectedId) ?? (selectedId ? linkedTask.data : undefined)
   const previewTask = all.find((t) => t.id === previewId)
 
   const archivedProjectIds = useMemo(
@@ -594,6 +614,12 @@ export default function TasksPage({ user }) {
         />
       )}
 
+      {selectedId && !selectedTask && linkedTask.isError && (
+        <div className="fixed bottom-6 right-6 z-30 max-w-sm px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 shadow-lg">
+          That task couldn't be opened: {linkedTask.error.message}
+          <button onClick={() => setSelectedId(null)} className="ml-2 font-semibold underline">Dismiss</button>
+        </div>
+      )}
       {selectedTask && (
         <TaskDetailModal task={selectedTask} user={user} onClose={() => setSelectedId(null)} />
       )}

@@ -4,7 +4,7 @@ import {
   fetchForms, createForm, updateForm,
   submitFormResponse, fetchFormResponses, fetchMyResponses,
 } from '../features/forms/api'
-import { formatDateTime } from '../lib/dateUtils'
+import { formatDate, formatDateTime } from '../lib/dateUtils'
 
 const initials = (name) =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -325,7 +325,7 @@ function FormCard({ f, onEdit, onFill, onViewResponses }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-bold text-gray-900 leading-snug">{f.title}</p>
-          <p className="text-xs text-gray-400 mt-1">{f.questions} questions · created {f.created}</p>
+          <p className="text-xs text-gray-400 mt-1">{f.questions} questions · created {formatDate(f.created)}</p>
         </div>
         <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium border ${
           f.status === 'Open'

@@ -1,4 +1,4 @@
-import { apiClient } from '../../lib/apiClient'
+import { apiClient, saveBlob } from '../../lib/apiClient'
 
 const DEFAULT_STAGES = [
   { id: 1, name: 'To Do', isDefault: true },
@@ -36,6 +36,29 @@ export async function fetchProjects() {
   return projects.map(withDisplayDates)
 }
 
+// The form's file list mixes files already on the project ({ id, name }) with
+// newly picked ones ({ id, name, file: File }). The JSON request carries only
+// the existing ones (the backend removes any left out); the new ones are then
+// uploaded one by one.
+const existingFiles = (files) => (files ?? []).filter((f) => !f.file)
+const newFiles = (files) => (files ?? []).filter((f) => f.file)
+
+async function uploadNewFiles(projectId, files) {
+  let project = null
+  for (const f of newFiles(files)) {
+    try {
+      project = await apiClient.upload(`/projects/${projectId}/files`, f.file)
+    } catch (err) {
+      // `projectSaved` lets the form close instead of inviting a retry that
+      // would hit "name already exists" or upload the earlier files twice.
+      const error = new Error(`The project was saved, but "${f.name}" couldn't be uploaded: ${err.message}`)
+      error.projectSaved = true
+      throw error
+    }
+  }
+  return project
+}
+
 export async function createProject({
   name, departments, leads, description, start, end,
   workflowStages, sprintsEnabled, files, accessLevel,
@@ -49,32 +72,34 @@ export async function createProject({
     end: end || null,
     workflowStages: workflowStages?.length ? workflowStages : DEFAULT_STAGES,
     sprintsEnabled: !!sprintsEnabled,
-    files: files ?? [],
+    files: [],
     accessLevel: accessLevel || 'Full Access',
   })
-  return withDisplayDates(project)
+  const withUploads = await uploadNewFiles(project.id, files)
+  return withDisplayDates(withUploads ?? project)
 }
 
-export async function updateProject({ projectId, ...patch }) {
+export async function updateProject({ projectId, files, ...patch }) {
   // start/end are a tri-state merge-patch on the backend: omitted/null leaves
   // the date untouched, "" clears it, anything else is parsed as a new date.
   // The edit form already sends "" when a date input is cleared, so no
   // conversion is needed here — passing patch through as-is is correct.
-  const project = await apiClient.patch(`/projects/${projectId}`, patch)
-  return withDisplayDates(project)
+  const project = await apiClient.patch(`/projects/${projectId}`, {
+    ...patch,
+    ...(files !== undefined ? { files: existingFiles(files) } : {}),
+  })
+  const withUploads = await uploadNewFiles(projectId, files)
+  return withDisplayDates(withUploads ?? project)
+}
+
+// Files added before uploads existed have no content (size is null).
+export async function downloadProjectFile({ projectId, file }) {
+  const blob = await apiClient.download(`/projects/${projectId}/files/${file.id}/content`)
+  saveBlob(blob, file.name)
 }
 
 export async function deleteProject(projectId) {
   return apiClient.delete(`/projects/${projectId}`)
-}
-
-export async function addProjectFile({ projectId, name }) {
-  return apiClient.post(`/projects/${projectId}/files`, { name })
-}
-
-export async function removeProjectFile({ projectId, fileId }) {
-  const project = await apiClient.delete(`/projects/${projectId}/files/${fileId}`)
-  return withDisplayDates(project)
 }
 
 export { DEFAULT_STAGES }

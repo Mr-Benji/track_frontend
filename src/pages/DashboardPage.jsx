@@ -128,7 +128,7 @@ function WorkspaceSwitcher({ current, workspaces, onChange, onCreate }) {
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4" onClick={() => setShowNew(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-gray-900">New workspace</h2>
-            <p className="mt-1 text-sm text-gray-400">Create a separate place for another team or organisation.</p>
+            <p className="mt-1 text-sm text-gray-400">Keeps its own projects, tasks, sprints, meetings and forms. Members and departments are shared across workspaces.</p>
             <input
               autoFocus
               value={name}
@@ -311,7 +311,7 @@ function ProfileMenu({ user, onLogout, onUpdateUser }) {
   )
 }
 
-export default function DashboardPage({ user, onLogout, onUpdateUser }) {
+export default function DashboardPage({ user, onLogout, onUpdateUser, onRefreshUser }) {
   // Which screen is showing right now — the heart of navigation.
   // A shared task link ("#task-123", see TaskDetailModal's Share button)
   // should land straight on Tasks so the deep-linked task can open.
@@ -322,7 +322,9 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
   // Nothing picked yet → the first workspace, which is what the user sees.
   const currentWorkspace = workspaces.find((w) => w.id === user.workspaceId) ?? workspaces[0]
 
-  // Profile changes (e.g. a new name) show up in members, tasks, leads…
+  // Refetch everything afterwards: a new name shows up in members, tasks and
+  // leads, and switching workspace swaps the projects, tasks, sprints,
+  // meetings and forms the backend returns.
   async function updateUser(patch) {
     await onUpdateUser(patch)
     queryClient.invalidateQueries()
@@ -330,8 +332,7 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
 
   async function addWorkspace(name) {
     const created = await createWorkspace({ name })
-    await queryClient.invalidateQueries({ queryKey: ['workspaces'] })
-    await onUpdateUser({ workspaceId: created.id })
+    await updateUser({ workspaceId: created.id })
   }
 
   // One entry per sidebar item
@@ -340,8 +341,8 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
   // Map page name → what to render
   const pages = {
     Home: <HomePage user={user} />,
-    Members: <MembersPage user={user} />,
-    Departments: <DepartmentsPage user={user} />,
+    Members: <MembersPage user={user} onSelfChanged={onRefreshUser} />,
+    Departments: <DepartmentsPage user={user} onSelfChanged={onRefreshUser} />,
     Projects: <ProjectsPage user={user} />,
     Sprints: <SprintsPage user={user} />,
     Tasks: <TasksPage user={user} />,
@@ -390,7 +391,7 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
           <WorkspaceSwitcher
             current={currentWorkspace}
             workspaces={workspaces}
-            onChange={(w) => onUpdateUser({ workspaceId: w.id }).catch((err) => window.alert(err.message))}
+            onChange={(w) => updateUser({ workspaceId: w.id }).catch((err) => window.alert(err.message))}
             onCreate={addWorkspace}
           />
           <ProfileMenu user={user} onLogout={onLogout} onUpdateUser={updateUser} />

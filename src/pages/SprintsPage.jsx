@@ -4,6 +4,33 @@ import { fetchSprints, createSprint, updateSprint, deleteSprint } from '../featu
 import { fetchTasks, createTask } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
 
+// "Jul 13, 2026"-style range for a sprint card; either end may be missing.
+function sprintDates(s) {
+  const fmt = (iso) => {
+    const [y, m, d] = iso.split('-')
+    return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  if (!s.start && !s.end) return 'No dates set'
+  return `${s.start ? fmt(s.start) : '—'} – ${s.end ? fmt(s.end) : '—'}`
+}
+
+function SprintDateInputs({ start, end, onStart, onEnd }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Start date</label>
+        <input type="date" value={start} onChange={(e) => onStart(e.target.value)}
+          className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400" />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1.5">End date</label>
+        <input type="date" value={end} onChange={(e) => onEnd(e.target.value)}
+          className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400" />
+      </div>
+    </div>
+  )
+}
+
 const statusStyle = {
   Active: 'bg-emerald-50 text-emerald-600 border-emerald-200',
   Planning: 'bg-sky-50 text-sky-600 border-sky-200',
@@ -29,7 +56,7 @@ function SprintCard({ s, compact, onOpenTasks, onEdit, onDelete, taskCount, done
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-bold text-gray-900 leading-snug">{s.name}</p>
-          <p className="text-xs text-gray-400 mt-1">{s.start} - {s.end}</p>
+          <p className="text-xs text-gray-400 mt-1">{sprintDates(s)}</p>
         </div>
         {!compact && (
           <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium border ${statusStyle[s.status]}`}>
@@ -51,7 +78,8 @@ function SprintCard({ s, compact, onOpenTasks, onEdit, onDelete, taskCount, done
         </div>
       </div>
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50 text-xs text-gray-400">
-        <span>Velocity: <span className="font-semibold text-gray-600">{s.velocity} pts</span></span>
+        {/* Backend: done tasks per week since the sprint started; null without a start date. */}
+        <span>Velocity: <span className="font-semibold text-gray-600">{s.velocity == null ? '—' : `${s.velocity} tasks/week`}</span></span>
         <span>{taskCount - doneCount} remaining</span>
       </div>
       <p className="mt-3 text-xs font-semibold text-sky-600">View sprint tasks →</p>
@@ -81,6 +109,8 @@ function EditSprintModal({ sprint, onClose, onSave, saving, error }) {
   const [name, setName] = useState(sprint.name)
   const [goal, setGoal] = useState(sprint.goal ?? '')
   const [status, setStatus] = useState(sprint.status)
+  const [start, setStart] = useState(sprint.start ?? '')
+  const [end, setEnd] = useState(sprint.end ?? '')
 
   return (
     <div
@@ -104,6 +134,7 @@ function EditSprintModal({ sprint, onClose, onSave, saving, error }) {
           rows={3}
           className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
         />
+        <SprintDateInputs start={start} end={end} onStart={setStart} onEnd={setEnd} />
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
           <select
@@ -127,7 +158,7 @@ function EditSprintModal({ sprint, onClose, onSave, saving, error }) {
             Cancel
           </button>
           <button
-            onClick={() => onSave({ name, goal, status })}
+            onClick={() => onSave({ name, goal, status, start, end })}
             disabled={saving || !name}
             className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
           >
@@ -150,15 +181,19 @@ function SprintTaskCreator({ sprint }) {
     mutationFn: createTask,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['sprints'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
       setTitle('')
       setProjectId('')
       setOpen(false)
     },
   })
 
+  // Only a due date is asked for here; leave the start date empty rather
+  // than silently copying the due date into it.
   function submit(e) {
     e.preventDefault()
-    create.mutate({ title: title.trim(), projectId, startDate: dueDate, dueDate, sprintId: sprint.id })
+    create.mutate({ title: title.trim(), projectId, dueDate, sprintId: sprint.id })
   }
 
   return (
@@ -196,7 +231,7 @@ function SprintTasksModal({ sprint, tasks, onClose }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-lg font-bold text-gray-900">{sprint.name}</p>
-            <p className="mt-0.5 text-xs text-gray-400">{sprint.start} – {sprint.end} · {tasks.length} linked tasks</p>
+            <p className="mt-0.5 text-xs text-gray-400">{sprintDates(sprint)} · {tasks.length} linked tasks</p>
           </div>
           <button onClick={onClose} className="rounded-lg px-2 py-1 text-gray-400 hover:bg-gray-50 hover:text-gray-700">✕</button>
         </div>
@@ -227,6 +262,8 @@ export default function SprintsPage({ user }) {
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
   const [newGoal, setNewGoal] = useState('')
+  const [newStart, setNewStart] = useState('')
+  const [newEnd, setNewEnd] = useState('')
   const [selectedSprint, setSelectedSprint] = useState(null)
   const [editingSprint, setEditingSprint] = useState(null)
   const [deleteError, setDeleteError] = useState('')
@@ -242,6 +279,8 @@ export default function SprintsPage({ user }) {
       setShowNew(false)
       setNewName('')
       setNewGoal('')
+      setNewStart('')
+      setNewEnd('')
     },
   })
 
@@ -422,6 +461,7 @@ export default function SprintsPage({ user }) {
               rows={3}
               className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
             />
+            <SprintDateInputs start={newStart} end={newEnd} onStart={setNewStart} onEnd={setNewEnd} />
             {create.isError && (
               <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{create.error.message}</p>
             )}
@@ -433,7 +473,7 @@ export default function SprintsPage({ user }) {
                 Cancel
               </button>
               <button
-                onClick={() => create.mutate({ name: newName, goal: newGoal })}
+                onClick={() => create.mutate({ name: newName, goal: newGoal, start: newStart, end: newEnd })}
                 disabled={create.isPending || !newName}
                 className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
               >

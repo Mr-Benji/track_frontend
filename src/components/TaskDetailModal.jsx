@@ -11,13 +11,16 @@ import {
   removeLink,
   addFile,
   removeFile,
+  downloadFile,
   addAssignee,
   removeAssignee,
 } from '../features/tasks/api'
 import { fetchProjects } from '../features/projects/api'
 import { projectStatuses } from '../features/projects/stages'
 import { fetchMembers } from '../features/members/api'
+import { fetchSprints } from '../features/sprints/api'
 import { formatDateTime } from '../lib/dateUtils'
+import { formatBytes } from '../lib/apiClient'
 import AssigneePicker from './AssigneePicker'
 import RichTextEditor from './RichTextEditor'
 
@@ -59,7 +62,17 @@ export default function TaskDetailModal({ task, user, onClose }) {
   const membersQ = useQuery({ queryKey: ['members'], queryFn: fetchMembers })
   const members = membersQ.data ?? []
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+  const sprintsQ = useQuery({ queryKey: ['sprints'], queryFn: fetchSprints })
+  const sprints = sprintsQ.data ?? []
+
+  // Task changes also move project counts/status and sprint progress, and a
+  // task opened from a link outside the list is cached under ['task', id].
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.invalidateQueries({ queryKey: ['task'] })
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
+    queryClient.invalidateQueries({ queryKey: ['sprints'] })
+  }
 
   const patch = useMutation({ mutationFn: updateTask, onSuccess: invalidate })
   const setStatus = useMutation({ mutationFn: updateTaskStatus, onSuccess: invalidate })
@@ -89,8 +102,14 @@ export default function TaskDetailModal({ task, user, onClose }) {
   const deleteLink = useMutation({ mutationFn: removeLink, onSuccess: invalidate })
   const uploadFile = useMutation({ mutationFn: addFile, onSuccess: invalidate })
   const deleteFile = useMutation({ mutationFn: removeFile, onSuccess: invalidate })
+  const fetchFile = useMutation({ mutationFn: downloadFile })
   const assignPerson = useMutation({ mutationFn: addAssignee, onSuccess: invalidate })
   const unassignPerson = useMutation({ mutationFn: removeAssignee, onSuccess: invalidate })
+
+  // Most edits save on blur/change with no other feedback, so surface the
+  // backend's message for whichever one failed.
+  const failed = [patch, setStatus, postComment, createSubtask, flipSubtask, createLink, deleteLink, deleteFile, assignPerson, unassignPerson]
+    .find((m) => m.isError)
 
   function saveTitle() {
     setEditingTitle(false)
@@ -166,9 +185,9 @@ export default function TaskDetailModal({ task, user, onClose }) {
           </div>
         </div>
 
-        {remove.isError && (
+        {(remove.isError || failed) && (
           <div className="mx-6 mt-4 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
-            {remove.error.message}
+            {(remove.isError ? remove : failed).error.message}
           </div>
         )}
 
@@ -316,7 +335,10 @@ export default function TaskDetailModal({ task, user, onClose }) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <FieldLabel>Start date</FieldLabel>
+                {/* key: re-mount on a new saved value or a failed save, so the
+                    uncontrolled input never shows a date that isn't stored */}
                 <input
+                  key={`${task.startDate}|${patch.isError}`}
                   type="date"
                   defaultValue={task.startDate ?? ''}
                   onBlur={(e) => e.target.value !== (task.startDate ?? '') && patch.mutate({ id: task.id, startDate: e.target.value })}
@@ -326,6 +348,7 @@ export default function TaskDetailModal({ task, user, onClose }) {
               <div>
                 <FieldLabel>Due date</FieldLabel>
                 <input
+                  key={`${task.dueDate}|${patch.isError}`}
                   type="date"
                   defaultValue={task.dueDate ?? ''}
                   onBlur={(e) => e.target.value && e.target.value !== task.dueDate && patch.mutate({ id: task.id, dueDate: e.target.value })}
@@ -347,25 +370,53 @@ export default function TaskDetailModal({ task, user, onClose }) {
             </div>
 
             <div>
+              <FieldLabel>Sprint</FieldLabel>
+              <select
+                value={task.sprintId ?? ''}
+                onChange={(e) => patch.mutate({ id: task.id, sprintId: e.target.value })}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+              >
+                {/* "" moves the task back to the backlog */}
+                <option value="">Backlog (no sprint)</option>
+                {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}{s.status !== 'Active' ? ` · ${s.status}` : ''}</option>)}
+              </select>
+            </div>
+
+            <div>
               <FieldLabel>Files ({(task.files ?? []).length})</FieldLabel>
               <div className="space-y-1.5">
                 {(task.files ?? []).map((f) => (
                   <div key={f.id} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5">
-                    <span className="text-xs text-gray-700 truncate">{f.name}</span>
+                    {/* size is null for files added before real uploads — nothing to download */}
+                    {f.size != null ? (
+                      <button
+                        onClick={() => fetchFile.mutate({ taskId: task.id, file: f })}
+                        className="text-xs text-sky-600 hover:underline truncate text-left"
+                        title="Download"
+                      >
+                        {f.name} <span className="text-gray-400">· {formatBytes(f.size)}</span>
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-700 truncate">{f.name}</span>
+                    )}
                     <button onClick={() => deleteFile.mutate({ taskId: task.id, fileId: f.id })} className="text-gray-400 hover:text-red-500 text-xs shrink-0">✕</button>
                   </div>
                 ))}
                 {(task.files ?? []).length === 0 && (
                   <p className="text-xs text-gray-400">No files uploaded</p>
                 )}
+                {(uploadFile.isError || fetchFile.isError) && (
+                  <p className="text-xs text-red-500">{(uploadFile.error ?? fetchFile.error).message}</p>
+                )}
                 <label className="block text-center text-xs font-semibold text-sky-600 border border-dashed border-sky-200 rounded-lg py-1.5 cursor-pointer hover:bg-sky-50">
-                  + Add file
+                  {uploadFile.isPending ? 'Uploading...' : '+ Add file'}
                   <input
                     type="file"
                     className="hidden"
+                    disabled={uploadFile.isPending}
                     onChange={(e) => {
                       const file = e.target.files?.[0]
-                      if (file) uploadFile.mutate({ taskId: task.id, name: file.name })
+                      if (file) uploadFile.mutate({ taskId: task.id, file })
                       e.target.value = ''
                     }}
                   />

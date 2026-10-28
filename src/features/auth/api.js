@@ -19,6 +19,18 @@ export async function registerRequest({ fullName, email, password }) {
   return data
 }
 
+// Always resolves with the same message, whether or not the email exists.
+export async function forgotPasswordRequest({ email }) {
+  return apiClient.post('/auth/forgot-password', { email })
+}
+
+// token comes from the emailed "#reset?token=..." link; logs the user in.
+export async function resetPasswordRequest({ token, password }) {
+  const data = await apiClient.post('/auth/reset-password', { token, password })
+  setToken(data.token)
+  return data
+}
+
 // Restores the session from a stored token after a page reload.
 export async function fetchMe() {
   return apiClient.get('/me')

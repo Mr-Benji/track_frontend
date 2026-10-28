@@ -88,6 +88,15 @@ export function shortLabel(isoDate) {
   })
 }
 
+// "Jul 16, 2026" for an ISO date ("2026-07-16") — member joined, form created.
+export function formatDate(isoDate) {
+  if (!isoDate) return ''
+  const [y, m, d] = isoDate.slice(0, 10).split('-')
+  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
+}
+
 // "Jul 16, 2026, 3:45 PM" — used for activity log / comment timestamps.
 export function formatDateTime(iso) {
   if (!iso) return ''

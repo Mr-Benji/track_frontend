@@ -11,7 +11,8 @@ export default function AssigneePicker({
 }) {
   const [pick, setPick] = useState('')
 
-  const available = members.filter((m) => !assignees.includes(m.name))
+  // Suspended members can't log in, so they aren't offered.
+  const available = members.filter((m) => !assignees.includes(m.name) && m.status !== 'Suspended')
 
   function handleAdd() {
     if (pick) {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchDepartments, createDepartment, updateDepartment, deleteDepartment } from '../features/departments/api'
+import MemberSelect from '../components/MemberSelect'
 
 function DepartmentCard({ d, onEdit, onDelete }) {
   return (
@@ -59,12 +60,7 @@ function EditDepartmentModal({ department, onClose, onSave, saving, error }) {
           placeholder="Department name"
           className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
         />
-        <input
-          value={lead}
-          onChange={(e) => setLead(e.target.value)}
-          placeholder="Department lead (name)"
-          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
-        />
+        <MemberSelect value={lead} onChange={setLead} placeholder="No lead" />
         {error && (
           <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
         )}
@@ -88,7 +84,7 @@ function EditDepartmentModal({ department, onClose, onSave, saving, error }) {
   )
 }
 
-export default function DepartmentsPage({ user }) {
+export default function DepartmentsPage({ user, onSelfChanged }) {
   // Creating, editing and deleting departments is admin-only on the backend.
   const isAdmin = user?.role === 'Admin'
   const [search, setSearch] = useState('')
@@ -105,6 +101,8 @@ export default function DepartmentsPage({ user }) {
     mutationFn: createDepartment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      onSelfChanged?.()
       setShowNew(false)
       setNewName('')
       setNewLead('')
@@ -115,6 +113,10 @@ export default function DepartmentsPage({ user }) {
     mutationFn: updateDepartment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] })
+      // A new lead joins the department: member lists and possibly your own
+      // department (Projects page grouping) change.
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      onSelfChanged?.()
       setEditingDept(null)
     },
   })
@@ -149,7 +151,7 @@ export default function DepartmentsPage({ user }) {
             Departments <span className="text-gray-300 font-medium text-lg">({all.length})</span>
           </h1>
           <p className="text-gray-500 mt-1">
-            Manage your workspace departments · {totalMembers} people in total
+            Manage your organisation's departments · {totalMembers} people in total
           </p>
         </div>
         {isAdmin && (
@@ -208,12 +210,7 @@ export default function DepartmentsPage({ user }) {
               placeholder="Department name"
               className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
-            <input
-              value={newLead}
-              onChange={(e) => setNewLead(e.target.value)}
-              placeholder="Department lead (name)"
-              className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
-            />
+            <MemberSelect value={newLead} onChange={setNewLead} placeholder="No lead (optional)" />
             {create.isError && (
               <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{create.error.message}</p>
             )}
@@ -226,7 +223,7 @@ export default function DepartmentsPage({ user }) {
               </button>
               <button
                 onClick={() => create.mutate({ name: newName, lead: newLead })}
-                disabled={create.isPending || !newName || !newLead}
+                disabled={create.isPending || !newName}
                 className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
               >
                 {create.isPending ? 'Creating...' : 'Create department'}
