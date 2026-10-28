@@ -20,6 +20,7 @@ function DepartmentCard({ d, onEdit, onDelete }) {
         </span>
         <p className="text-xs text-gray-600 mt-1 truncate">{(d.people ?? []).join(', ')}</p>
       </div>
+      {onEdit && (
       <div className="flex gap-2 pt-4 mt-4 border-t border-gray-50">
         <button
           onClick={() => onEdit(d)}
@@ -34,6 +35,7 @@ function DepartmentCard({ d, onEdit, onDelete }) {
           Delete
         </button>
       </div>
+      )}
     </div>
   )
 }
@@ -86,7 +88,9 @@ function EditDepartmentModal({ department, onClose, onSave, saving, error }) {
   )
 }
 
-export default function DepartmentsPage() {
+export default function DepartmentsPage({ user }) {
+  // Creating, editing and deleting departments is admin-only on the backend.
+  const isAdmin = user?.role === 'Admin'
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
@@ -148,12 +152,14 @@ export default function DepartmentsPage() {
             Manage your workspace departments · {totalMembers} people in total
           </p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
-        >
-          + New department
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowNew(true)}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
+          >
+            + New department
+          </button>
+        )}
       </div>
 
       <div className="mt-6 mb-5">
@@ -175,7 +181,7 @@ export default function DepartmentsPage() {
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {visible.map((d) => (
-          <DepartmentCard key={d.id} d={d} onEdit={setEditingDept} onDelete={handleDelete} />
+          <DepartmentCard key={d.id} d={d} onEdit={isAdmin ? setEditingDept : null} onDelete={isAdmin ? handleDelete : null} />
         ))}
       </div>
 

@@ -56,6 +56,7 @@ function MemberCard({ m, onEdit, onSuspend }) {
 
       <p className="text-xs text-gray-400 pt-3 border-t border-gray-50">Joined {m.joined}</p>
 
+      {onEdit && (
       <div className="flex gap-2 pt-3 border-t border-gray-50">
         <button
           onClick={() => onEdit(m)}
@@ -72,6 +73,7 @@ function MemberCard({ m, onEdit, onSuspend }) {
           </button>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -80,6 +82,7 @@ function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, e
   const [title, setTitle] = useState(member.title ?? '')
   const [role, setRole] = useState(member.role)
   const [department, setDepartment] = useState(member.department || '')
+  const [status, setStatus] = useState(member.status)
 
   return (
     <div
@@ -112,6 +115,17 @@ function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, e
           <option value="">No department</option>
           {departmentOptions.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
+        {/* Lets an admin reactivate a suspended member. Pending only ends by
+            the invitee activating, so it isn't offered as a choice. */}
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+        >
+          {member.status === 'Pending' && <option value="Pending">Pending</option>}
+          <option value="Active">Active</option>
+          <option value="Suspended">Suspended</option>
+        </select>
         {error && (
           <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
         )}
@@ -123,7 +137,7 @@ function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, e
             Cancel
           </button>
           <button
-            onClick={() => onSave({ title, role, department })}
+            onClick={() => onSave({ title, role, department, ...(status !== member.status ? { status } : {}) })}
             disabled={saving}
             className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
           >
@@ -135,7 +149,9 @@ function EditMemberModal({ member, departmentOptions, onClose, onSave, saving, e
   )
 }
 
-export default function MembersPage() {
+export default function MembersPage({ user }) {
+  // Inviting, editing and suspending members is admin-only on the backend.
+  const isAdmin = user?.role === 'Admin'
   const [tab, setTab] = useState('Active')
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -230,12 +246,14 @@ export default function MembersPage() {
           </h1>
           <p className="text-gray-500 mt-1">Manage your workspace members, roles, and permissions</p>
         </div>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
-        >
-          + Invite member
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowInvite(true)}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
+          >
+            + Invite member
+          </button>
+        )}
       </div>
 
       {/* US-46 — status tabs with count badges */}
@@ -284,7 +302,7 @@ export default function MembersPage() {
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {visible.map((m) => (
-          <MemberCard key={m.id} m={m} onEdit={setEditingMember} onSuspend={handleSuspend} />
+          <MemberCard key={m.id} m={m} onEdit={isAdmin ? setEditingMember : null} onSuspend={isAdmin ? handleSuspend : null} />
         ))}
       </div>
 

@@ -411,10 +411,10 @@ export default function TasksPage({ user }) {
   const [view, setView] = useState('Kanban')
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
-  // US-34 — a shared task link looks like "#task-123"; open straight to it.
+  // US-34 — a shared task link looks like "#task-<uuid>"; open straight to it.
   const [selectedId, setSelectedId] = useState(() => {
-    const match = /^#task-(\d+)/.exec(window.location.hash)
-    return match ? Number(match[1]) : null
+    const match = /^#task-([0-9a-f-]{36})/i.exec(window.location.hash)
+    return match ? match[1] : null
   })
   const [previewId, setPreviewId] = useState(null)
   const [filters, setFilters] = useState({ projectId: '', assignee: '', status: '', priority: '' })

@@ -2,7 +2,13 @@ import { useState } from 'react'
 
 // US-20 — search/select a person from the real member list and add them as
 // an assignee; current assignments are listed with a removable (x).
-export default function AssigneePicker({ assignees, members, onAdd, onRemove }) {
+// The labels default to task wording; meetings reuse this for attendees.
+export default function AssigneePicker({
+  assignees, members, onAdd, onRemove,
+  currentLabel = 'Current Assignments',
+  addLabel = 'Add New Assignment',
+  emptyLabel = 'No assignees yet',
+}) {
   const [pick, setPick] = useState('')
 
   const available = members.filter((m) => !assignees.includes(m.name))
@@ -17,8 +23,8 @@ export default function AssigneePicker({ assignees, members, onAdd, onRemove }) 
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-[11px] font-semibold text-gray-500 mb-1">Current Assignments</p>
-        {assignees.length === 0 && <p className="text-xs text-gray-400 italic">No assignees yet</p>}
+        <p className="text-[11px] font-semibold text-gray-500 mb-1">{currentLabel}</p>
+        {assignees.length === 0 && <p className="text-xs text-gray-400 italic">{emptyLabel}</p>}
         <div className="flex flex-wrap gap-1.5">
           {assignees.map((name) => (
             <span key={name} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-600">
@@ -29,7 +35,7 @@ export default function AssigneePicker({ assignees, members, onAdd, onRemove }) 
         </div>
       </div>
       <div>
-        <p className="text-[11px] font-semibold text-gray-500 mb-1">Add New Assignment</p>
+        <p className="text-[11px] font-semibold text-gray-500 mb-1">{addLabel}</p>
         <div className="flex gap-2">
           <select
             value={pick}

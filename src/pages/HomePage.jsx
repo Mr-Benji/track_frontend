@@ -6,6 +6,7 @@ import { fetchMembers } from '../features/members/api'
 import { fetchSprints } from '../features/sprints/api'
 import { fetchMeetings, createMeeting, updateMeeting, deleteMeeting } from '../features/meetings/api'
 import DashboardCalendar from '../components/DashboardCalendar'
+import AssigneePicker from '../components/AssigneePicker'
 import { isWithinWeek, sameDay } from '../lib/dateUtils'
 
 const initials = (name = '') =>
@@ -124,10 +125,25 @@ function formatMeetingDate(iso) {
 
 // The "Projects & Meetings" dashboard view's one distinguishing section —
 // otherwise that view looked identical to the default layout.
-function EditMeetingModal({ meeting, onClose, onSave, saving, error }) {
+function AttendeePicker({ attendees, members, onChange }) {
+  return (
+    <AssigneePicker
+      assignees={attendees}
+      members={members}
+      onAdd={(name) => onChange([...attendees, name])}
+      onRemove={(name) => onChange(attendees.filter((a) => a !== name))}
+      currentLabel="Attendees"
+      addLabel="Add attendee"
+      emptyLabel="No attendees yet"
+    />
+  )
+}
+
+function EditMeetingModal({ meeting, members, onClose, onSave, saving, error }) {
   const [title, setTitle] = useState(meeting.title)
   const [date, setDate] = useState(meeting.date)
   const [time, setTime] = useState(meeting.time ?? '')
+  const [attendees, setAttendees] = useState(meeting.attendees ?? [])
 
   return (
     <div
@@ -156,6 +172,7 @@ function EditMeetingModal({ meeting, onClose, onSave, saving, error }) {
             className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
           />
         </div>
+        <AttendeePicker attendees={attendees} members={members} onChange={setAttendees} />
         {error && (
           <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
         )}
@@ -164,7 +181,7 @@ function EditMeetingModal({ meeting, onClose, onSave, saving, error }) {
             Cancel
           </button>
           <button
-            onClick={() => onSave({ title, date, time })}
+            onClick={() => onSave({ title, date, time, attendees })}
             disabled={saving || !title || !date}
             className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
           >
@@ -176,12 +193,14 @@ function EditMeetingModal({ meeting, onClose, onSave, saving, error }) {
   )
 }
 
-function MeetingsPanel({ meetings, now }) {
+// Anyone can create a meeting; editing and deleting are admin-only on the backend.
+function MeetingsPanel({ meetings, members, now, isAdmin }) {
   const queryClient = useQueryClient()
   const [showNew, setShowNew] = useState(false)
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  const [attendees, setAttendees] = useState([])
   const [editingMeeting, setEditingMeeting] = useState(null)
   const [deleteError, setDeleteError] = useState('')
 
@@ -193,6 +212,7 @@ function MeetingsPanel({ meetings, now }) {
       setTitle('')
       setDate('')
       setTime('')
+      setAttendees([])
     },
   })
 
@@ -254,14 +274,16 @@ function MeetingsPanel({ meetings, now }) {
                   <p className="text-[11px] text-gray-400 mt-1 truncate">{m.attendees.join(', ')}</p>
                 )}
               </div>
-              <div className="flex gap-2 shrink-0">
-                <button onClick={() => setEditingMeeting(m)} className="text-xs text-sky-500 hover:text-sky-700 font-medium">
-                  Edit
-                </button>
-                <button onClick={() => handleDelete(m)} className="text-xs text-red-500 hover:text-red-700 font-medium">
-                  Delete
-                </button>
-              </div>
+              {isAdmin && (
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => setEditingMeeting(m)} className="text-xs text-sky-500 hover:text-sky-700 font-medium">
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(m)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -299,6 +321,7 @@ function MeetingsPanel({ meetings, now }) {
                 className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
               />
             </div>
+            <AttendeePicker attendees={attendees} members={members} onChange={setAttendees} />
             {create.isError && (
               <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{create.error.message}</p>
             )}
@@ -307,7 +330,7 @@ function MeetingsPanel({ meetings, now }) {
                 Cancel
               </button>
               <button
-                onClick={() => create.mutate({ title, date, time })}
+                onClick={() => create.mutate({ title, date, time, attendees })}
                 disabled={create.isPending || !title || !date}
                 className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
               >
@@ -321,6 +344,7 @@ function MeetingsPanel({ meetings, now }) {
       {editingMeeting && (
         <EditMeetingModal
           meeting={editingMeeting}
+          members={members}
           onClose={() => setEditingMeeting(null)}
           onSave={(patch) => edit.mutate({ meetingId: editingMeeting.id, ...patch })}
           saving={edit.isPending}
@@ -438,7 +462,7 @@ export default function HomePage({ user }) {
             <div className={dashboardView === 'Projects & Meetings' ? 'lg:col-span-2' : ''}>
               <DashboardCalendar tasks={tasks} />
             </div>
-            {dashboardView === 'Projects & Meetings' && <MeetingsPanel meetings={meetings} now={now} />}
+            {dashboardView === 'Projects & Meetings' && <MeetingsPanel meetings={meetings} members={members} now={now} isAdmin={user?.role === 'Admin'} />}
           </div>
 
           {/* ── Main grid — layout responds to the chosen dashboard view (US-05) ── */}

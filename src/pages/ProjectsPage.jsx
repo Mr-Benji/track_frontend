@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchProjects, createProject, updateProject, deleteProject, HOME_DEPARTMENT, ACCESS_LEVELS, DEFAULT_STAGES } from '../features/projects/api'
+import { fetchProjects, createProject, updateProject, deleteProject, ACCESS_LEVELS, DEFAULT_STAGES } from '../features/projects/api'
 import { fetchDepartments } from '../features/departments/api'
 import RichTextEditor from '../components/RichTextEditor'
 
@@ -39,7 +39,8 @@ const deptStyle = {
 const SORT_FIELDS = [
   { value: 'createdAt', label: 'Created Date' },
   { value: 'name', label: 'Name' },
-  { value: 'start', label: 'Start Date' },
+  // ISO, not the "Jul 13, 2026" display string, so it sorts chronologically.
+  { value: 'startISO', label: 'Start Date' },
 ]
 
 function dateRange(p) {
@@ -131,6 +132,7 @@ function ProjectCard({ p, onEdit, onDelete }) {
         </div>
       </div>
 
+      {onEdit && (
       <div className="flex gap-2 pt-3 border-t border-gray-50">
         <button
           onClick={() => onEdit(p)}
@@ -145,6 +147,7 @@ function ProjectCard({ p, onEdit, onDelete }) {
           Delete
         </button>
       </div>
+      )}
     </div>
   )
 }
@@ -174,6 +177,7 @@ function ProjectListRow({ p, onEdit, onDelete }) {
           <div className={`h-full rounded-full ${p.status === 'Overdue' ? 'bg-red-400' : progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div>
         </div>
       </div>
+      {onEdit && (
       <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={() => onEdit(p)}
@@ -188,6 +192,7 @@ function ProjectListRow({ p, onEdit, onDelete }) {
           Delete
         </button>
       </div>
+      )}
     </div>
   )
 }
@@ -223,13 +228,16 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
   const [departments, setDepartments] = useState(initialProject?.departments ?? [])
   const [leads, setLeads] = useState(initialProject?.leads ?? [])
   const [leadInput, setLeadInput] = useState('')
-  const [start, setStart] = useState(initialProject?.startISO ?? todayISO())
-  const [end, setEnd] = useState(initialProject?.endISO ?? todayISO())
+  // New projects default to today; an existing project without dates keeps
+  // them empty ("" leaves them cleared on save) instead of silently gaining today.
+  const [start, setStart] = useState(initialProject ? (initialProject.startISO ?? '') : todayISO())
+  const [end, setEnd] = useState(initialProject ? (initialProject.endISO ?? '') : todayISO())
   const [stages, setStages] = useState(initialProject?.workflowStages?.length ? initialProject.workflowStages : DEFAULT_STAGES)
   const [stageInput, setStageInput] = useState('')
   const [sprintsEnabled, setSprintsEnabled] = useState(initialProject?.sprintsEnabled ?? false)
   const [files, setFiles] = useState(initialProject?.files ?? [])
   const [accessLevel, setAccessLevel] = useState(initialProject?.accessLevel ?? ACCESS_LEVELS[0])
+  const [archived, setArchived] = useState(initialProject?.archived ?? false)
 
   function toggleDept(d) {
     setDepartments((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])
@@ -418,6 +426,13 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
           </select>
         </div>
 
+        {mode === 'edit' && (
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} className="accent-sky-500" />
+            Archived (moves it to the Archived tab)
+          </label>
+        )}
+
         {error && (
           <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
         )}
@@ -432,6 +447,7 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
             onClick={() => onSubmit({
               name, description, departments, leads, start, end,
               workflowStages: stages, sprintsEnabled, files, accessLevel,
+              ...(mode === 'edit' ? { archived } : {}),
             })}
             disabled={submitting || !name}
             className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
@@ -444,7 +460,7 @@ function ProjectFormModal({ mode = 'create', initialProject, onClose, onSubmit, 
   )
 }
 
-export default function ProjectsPage() {
+export default function ProjectsPage({ user }) {
   const [tab, setTab] = useState('Ongoing')
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -503,8 +519,9 @@ export default function ProjectsPage() {
         (tab === 'Ongoing' ? !p.archived : p.archived) &&
         p.name.toLowerCase().includes(search.toLowerCase())
     )
-    if (dateFrom) list = list.filter((p) => (p.createdAt ?? '') >= dateFrom)
-    if (dateTo) list = list.filter((p) => (p.createdAt ?? '') <= dateTo)
+    // createdAt is a full timestamp; compare its date part so "to" includes that day.
+    if (dateFrom) list = list.filter((p) => (p.createdAt ?? '').slice(0, 10) >= dateFrom)
+    if (dateTo) list = list.filter((p) => (p.createdAt ?? '').slice(0, 10) <= dateTo)
 
     const factor = sortDir === 'asc' ? 1 : -1
     list = [...list].sort((a, b) => {
@@ -517,9 +534,15 @@ export default function ProjectsPage() {
     return list
   }, [all, tab, search, dateFrom, dateTo, sortField, sortDir])
 
-  // US-11 — split into "home department" projects vs. everything else.
-  const homeGroup = visible.filter((p) => (p.departments ?? []).includes(HOME_DEPARTMENT))
-  const otherGroup = visible.filter((p) => !(p.departments ?? []).includes(HOME_DEPARTMENT))
+  // US-11 — split into the signed-in user's department vs. everything else.
+  // Someone without a department just gets one list.
+  const homeDepartment = user?.department || ''
+  // Creating, editing and deleting projects is admin-only on the backend.
+  const isAdmin = user?.role === 'Admin'
+  const editHandler = isAdmin ? setEditingProject : null
+  const deleteHandler = isAdmin ? handleDelete : null
+  const homeGroup = homeDepartment ? visible.filter((p) => (p.departments ?? []).includes(homeDepartment)) : []
+  const otherGroup = visible.filter((p) => !homeGroup.includes(p))
 
   return (
     <div>
@@ -530,12 +553,14 @@ export default function ProjectsPage() {
           </h1>
           <p className="text-gray-500 mt-1">Manage your projects and track progress</p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
-        >
-          + New project
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowNew(true)}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
+          >
+            + New project
+          </button>
+        )}
       </div>
 
       <div className="flex gap-6 border-b border-gray-200 mt-6 mb-5">
@@ -625,14 +650,14 @@ export default function ProjectsPage() {
 
       {!projects.isLoading && (
         <>
-          <ProjectGroup title={`${HOME_DEPARTMENT} Projects`} items={homeGroup} layout={layout} onEdit={setEditingProject} onDelete={handleDelete} />
+          <ProjectGroup title={`${homeDepartment} Projects`} items={homeGroup} layout={layout} onEdit={editHandler} onDelete={deleteHandler} />
           <ProjectGroup
-            title="Other Projects"
-            subtitle="Projects from other departments or general projects"
+            title={homeDepartment ? 'Other Projects' : 'All Projects'}
+            subtitle={homeDepartment ? 'Projects from other departments or general projects' : null}
             items={otherGroup}
             layout={layout}
-            onEdit={setEditingProject}
-            onDelete={handleDelete}
+            onEdit={editHandler}
+            onDelete={deleteHandler}
           />
         </>
       )}

@@ -39,6 +39,8 @@ function FieldLabel({ children }) {
 export default function TaskDetailModal({ task, user, onClose }) {
   const queryClient = useQueryClient()
   const author = user?.name ?? 'Someone'
+  // Same rule as the backend: admins delete any task, others only their own drafts.
+  const canDelete = user?.role === 'Admin' || (task.isDraft && task.createdBy === user?.name)
 
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(task.title)
@@ -149,13 +151,15 @@ export default function TaskDetailModal({ task, user, onClose }) {
             >
               {shareCopied ? 'Copied!' : 'Share'}
             </button>
-            <button
-              onClick={handleDelete}
-              disabled={remove.isPending}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
-            >
-              {remove.isPending ? 'Deleting...' : 'Delete'}
-            </button>
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={remove.isPending}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
+              >
+                {remove.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">
               ✕
             </button>

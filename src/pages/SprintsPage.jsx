@@ -55,6 +55,7 @@ function SprintCard({ s, compact, onOpenTasks, onEdit, onDelete, taskCount, done
         <span>{taskCount - doneCount} remaining</span>
       </div>
       <p className="mt-3 text-xs font-semibold text-sky-600">View sprint tasks →</p>
+      {onEdit && (
       <div className="flex gap-2 pt-3 mt-3 border-t border-gray-50" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -71,6 +72,7 @@ function SprintCard({ s, compact, onOpenTasks, onEdit, onDelete, taskCount, done
           Delete
         </button>
       </div>
+      )}
     </div>
   )
 }
@@ -216,7 +218,9 @@ function SprintTasksModal({ sprint, tasks, onClose }) {
   )
 }
 
-export default function SprintsPage() {
+export default function SprintsPage({ user }) {
+  // Creating, editing and deleting sprints is admin-only on the backend.
+  const isAdmin = user?.role === 'Admin'
   const [tab, setTab] = useState('All')
   const [view, setView] = useState('List')
   const [search, setSearch] = useState('')
@@ -293,12 +297,14 @@ export default function SprintsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Sprints</h1>
           <p className="text-gray-500 mt-1">Manage your sprints and track team velocity</p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
-        >
-          + New sprint
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowNew(true)}
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 shadow-sm shadow-sky-200 transition"
+          >
+            + New sprint
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 mt-6 mb-5 flex flex-wrap items-center gap-3">
@@ -353,7 +359,7 @@ export default function SprintsPage() {
       {view === 'List' && (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visible.map((s) => (
-            <SprintCard key={s.id} s={s} onOpenTasks={setSelectedSprint} onEdit={setEditingSprint} onDelete={handleDelete} {...taskSummary(s)} />
+            <SprintCard key={s.id} s={s} onOpenTasks={setSelectedSprint} onEdit={isAdmin ? setEditingSprint : null} onDelete={isAdmin ? handleDelete : null} {...taskSummary(s)} />
           ))}
         </div>
       )}
@@ -374,7 +380,7 @@ export default function SprintsPage() {
                 </div>
                 <div className="space-y-3">
                   {items.map((s) => (
-                    <SprintCard key={s.id} s={s} compact onOpenTasks={setSelectedSprint} onEdit={setEditingSprint} onDelete={handleDelete} {...taskSummary(s)} />
+                    <SprintCard key={s.id} s={s} compact onOpenTasks={setSelectedSprint} onEdit={isAdmin ? setEditingSprint : null} onDelete={isAdmin ? handleDelete : null} {...taskSummary(s)} />
                   ))}
                   {items.length === 0 && (
                     <p className="text-xs text-gray-400 text-center py-6">No sprints</p>

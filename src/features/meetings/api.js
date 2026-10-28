@@ -4,8 +4,8 @@ export async function fetchMeetings() {
   return apiClient.get('/meetings')
 }
 
-export async function createMeeting({ title, date, time }) {
-  return apiClient.post('/meetings', { title, date, time })
+export async function createMeeting({ title, date, time, attendees }) {
+  return apiClient.post('/meetings', { title, date, time, attendees: attendees ?? [] })
 }
 
 export async function updateMeeting({ meetingId, ...patch }) {

@@ -6,10 +6,6 @@ const DEFAULT_STAGES = [
   { id: 3, name: 'Done', isDefault: true },
 ]
 
-// Projects belonging to this department are shown in the main section;
-// everything else (other departments, or General/uncategorized) is grouped under "Other Projects".
-export const HOME_DEPARTMENT = 'Development'
-
 export const ACCESS_LEVELS = ['Full Access', 'Restricted', 'Private']
 
 // The backend returns/expects project start/end as ISO ("2026-09-01"), but

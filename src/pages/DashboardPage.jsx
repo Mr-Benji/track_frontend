@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchWorkspaces, createWorkspace } from '../features/workspaces/api'
 import HomePage from './HomePage'
 import MembersPage from './MembersPage'
 import DepartmentsPage from './Departmentspage'
@@ -7,8 +9,6 @@ import SprintsPage from './SprintsPage'
 import TasksPage from './TasksPage'
 import FormsPage from './FormsPage'
 import TeamAnalyticsPage from './TeamAnalyticsPage'
-
-const INITIAL_WORKSPACES = ['Health Intelligence Center', 'Demo Workspace']
 
 const navIcons = {
   Home: (
@@ -65,18 +65,30 @@ const initials = (name = '') =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
 // US-51 — switch the active workspace from a dropdown near the top of the app.
-function WorkspaceSwitcher({ workspace, workspaces, onChange, onCreate }) {
+// Workspaces are a shared list on the backend; the one you pick is saved on
+// your profile so it sticks across reloads.
+function WorkspaceSwitcher({ current, workspaces, onChange, onCreate }) {
   const [open, setOpen] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  function createWorkspace() {
+  async function createWorkspace() {
     const cleanName = name.trim()
     if (!cleanName) return
-    onCreate(cleanName)
-    setName('')
-    setShowNew(false)
-    setOpen(false)
+    setSaving(true)
+    try {
+      await onCreate(cleanName)
+      setName('')
+      setError('')
+      setShowNew(false)
+      setOpen(false)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
   return (
     <div className="relative">
@@ -85,7 +97,7 @@ function WorkspaceSwitcher({ workspace, workspaces, onChange, onCreate }) {
         className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50"
       >
         <span className="w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center text-[10px] font-bold">TW</span>
-        {workspace}
+        {current?.name ?? 'Workspace'}
         <span className="text-gray-400 text-xs">▾</span>
       </button>
       {open && (
@@ -94,11 +106,11 @@ function WorkspaceSwitcher({ workspace, workspaces, onChange, onCreate }) {
           <div className="absolute left-0 mt-1.5 w-56 bg-white rounded-xl border border-gray-100 shadow-lg z-20 py-1.5">
             {workspaces.map((w) => (
               <button
-                key={w}
+                key={w.id}
                 onClick={() => { onChange(w); setOpen(false) }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${w === workspace ? 'text-sky-600 font-semibold' : 'text-gray-700'}`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${w.id === current?.id ? 'text-sky-600 font-semibold' : 'text-gray-700'}`}
               >
-                {w}
+                {w.name}
               </button>
             ))}
             <div className="mx-2 mt-1 border-t border-gray-100 pt-1">
@@ -125,15 +137,42 @@ function WorkspaceSwitcher({ workspace, workspaces, onChange, onCreate }) {
               placeholder="Workspace name"
               className="mt-4 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
+            {error && (
+              <p className="mt-3 text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setShowNew(false)} className="rounded-xl border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={createWorkspace} disabled={!name.trim()} className="rounded-xl bg-sky-500 px-3.5 py-2 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-50">Create</button>
+              <button onClick={createWorkspace} disabled={!name.trim() || saving} className="rounded-xl bg-sky-500 px-3.5 py-2 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-50">{saving ? 'Creating...' : 'Create'}</button>
             </div>
           </div>
         </div>
       )}
     </div>
   )
+}
+
+// Saves through the backend and only closes once it succeeded, so a rejected
+// change (e.g. an email that's already taken) shows its reason instead.
+function useSave(onSave, onClose) {
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  async function save(patch) {
+    setSaving(true)
+    try {
+      await onSave(patch)
+      onClose()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+  return { save, saving, error }
+}
+
+function ErrorNote({ message }) {
+  if (!message) return null
+  return <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{message}</p>
 }
 
 function ModalShell({ title, subtitle, onClose, children }) {
@@ -153,6 +192,7 @@ function ModalShell({ title, subtitle, onClose, children }) {
 // Edit display name — the one thing the profile menu previously couldn't do.
 function ProfileModal({ user, onClose, onSave }) {
   const [name, setName] = useState(user.name)
+  const { save, saving, error } = useSave(onSave, onClose)
   return (
     <ModalShell title="Profile" subtitle="Update how your name appears across the workspace." onClose={onClose}>
       <div>
@@ -171,16 +211,17 @@ function ProfileModal({ user, onClose, onSave }) {
           className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 text-gray-400"
         />
       </div>
+      <ErrorNote message={error} />
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onClose} className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50">
           Cancel
         </button>
         <button
-          onClick={() => { onSave({ name: name.trim() || user.name }); onClose() }}
-          disabled={!name.trim()}
+          onClick={() => save({ name: name.trim() })}
+          disabled={!name.trim() || saving}
           className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
         >
-          Save changes
+          {saving ? 'Saving...' : 'Save changes'}
         </button>
       </div>
     </ModalShell>
@@ -190,6 +231,7 @@ function ProfileModal({ user, onClose, onSave }) {
 function SettingsModal({ user, onClose, onSave }) {
   const [email, setEmail] = useState(user.email)
   const [emailNotifications, setEmailNotifications] = useState(user.emailNotifications ?? true)
+  const { save, saving, error } = useSave(onSave, onClose)
   return (
     <ModalShell title="Settings" subtitle="Manage your account settings." onClose={onClose}>
       <div>
@@ -210,16 +252,17 @@ function SettingsModal({ user, onClose, onSave }) {
         />
         Email me about task and project updates
       </label>
+      <ErrorNote message={error} />
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onClose} className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50">
           Cancel
         </button>
         <button
-          onClick={() => { onSave({ email: email.trim() || user.email, emailNotifications }); onClose() }}
-          disabled={!email.trim()}
+          onClick={() => save({ email: email.trim(), emailNotifications })}
+          disabled={!email.trim() || saving}
           className="px-4 py-2.5 text-sm font-semibold rounded-xl text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50"
         >
-          Save changes
+          {saving ? 'Saving...' : 'Save changes'}
         </button>
       </div>
     </ModalShell>
@@ -273,12 +316,22 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
   // A shared task link ("#task-123", see TaskDetailModal's Share button)
   // should land straight on Tasks so the deep-linked task can open.
   const [page, setPage] = useState(() => (window.location.hash.startsWith('#task-') ? 'Tasks' : 'Home'))
-  const [workspaces, setWorkspaces] = useState(INITIAL_WORKSPACES)
-  const [workspace, setWorkspace] = useState(INITIAL_WORKSPACES[0])
+  const queryClient = useQueryClient()
+  const workspacesQ = useQuery({ queryKey: ['workspaces'], queryFn: fetchWorkspaces })
+  const workspaces = workspacesQ.data ?? []
+  // Nothing picked yet → the first workspace, which is what the user sees.
+  const currentWorkspace = workspaces.find((w) => w.id === user.workspaceId) ?? workspaces[0]
 
-  function addWorkspace(name) {
-    setWorkspaces((current) => current.includes(name) ? current : [...current, name])
-    setWorkspace(name)
+  // Profile changes (e.g. a new name) show up in members, tasks, leads…
+  async function updateUser(patch) {
+    await onUpdateUser(patch)
+    queryClient.invalidateQueries()
+  }
+
+  async function addWorkspace(name) {
+    const created = await createWorkspace({ name })
+    await queryClient.invalidateQueries({ queryKey: ['workspaces'] })
+    await onUpdateUser({ workspaceId: created.id })
   }
 
   // One entry per sidebar item
@@ -287,10 +340,10 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
   // Map page name → what to render
   const pages = {
     Home: <HomePage user={user} />,
-    Members: <MembersPage />,
-    Departments: <DepartmentsPage />,
-    Projects: <ProjectsPage />,
-    Sprints: <SprintsPage />,
+    Members: <MembersPage user={user} />,
+    Departments: <DepartmentsPage user={user} />,
+    Projects: <ProjectsPage user={user} />,
+    Sprints: <SprintsPage user={user} />,
     Tasks: <TasksPage user={user} />,
     Forms: <FormsPage />,
     'Team Analytics': <TeamAnalyticsPage />,
@@ -307,7 +360,7 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
           </div>
           <div>
             <p className="text-sm font-bold text-gray-900 leading-none">Track Workspace</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Health Intelligence Center</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">{currentWorkspace?.name ?? ''}</p>
           </div>
         </div>
 
@@ -334,8 +387,13 @@ export default function DashboardPage({ user, onLogout, onUpdateUser }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* ---------- Top bar (US-51, US-53) ---------- */}
         <header className="shrink-0 flex items-center justify-between px-8 py-4 bg-white border-b border-gray-100">
-          <WorkspaceSwitcher workspace={workspace} workspaces={workspaces} onChange={setWorkspace} onCreate={addWorkspace} />
-          <ProfileMenu user={user} onLogout={onLogout} onUpdateUser={onUpdateUser} />
+          <WorkspaceSwitcher
+            current={currentWorkspace}
+            workspaces={workspaces}
+            onChange={(w) => onUpdateUser({ workspaceId: w.id }).catch((err) => window.alert(err.message))}
+            onCreate={addWorkspace}
+          />
+          <ProfileMenu user={user} onLogout={onLogout} onUpdateUser={updateUser} />
         </header>
 
         <main className="flex-1 p-8 overflow-y-auto">
