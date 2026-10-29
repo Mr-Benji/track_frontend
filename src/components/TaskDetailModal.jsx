@@ -41,7 +41,6 @@ function FieldLabel({ children }) {
 
 export default function TaskDetailModal({ task, user, onClose }) {
   const queryClient = useQueryClient()
-  const author = user?.name ?? 'Someone'
   // Same rule as the backend: admins delete any task, others only their own drafts.
   const canDelete = user?.role === 'Admin' || (task.isDraft && task.createdBy === user?.name)
 
@@ -283,13 +282,13 @@ export default function TaskDetailModal({ task, user, onClose }) {
                 <input
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && newComment.trim() && postComment.mutate({ taskId: task.id, author, text: newComment.trim() })}
+                  onKeyDown={(e) => e.key === 'Enter' && newComment.trim() && postComment.mutate({ taskId: task.id, text: newComment.trim() })}
                   placeholder="Add a comment..."
                   className="flex-1 text-sm rounded-lg border border-gray-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
                 <button
                   disabled={!newComment.trim() || postComment.isPending}
-                  onClick={() => postComment.mutate({ taskId: task.id, author, text: newComment.trim() })}
+                  onClick={() => postComment.mutate({ taskId: task.id, text: newComment.trim() })}
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50"
                 >
                   Post
@@ -304,7 +303,7 @@ export default function TaskDetailModal({ task, user, onClose }) {
               <FieldLabel>Status</FieldLabel>
               <select
                 value={task.status}
-                onChange={(e) => setStatus.mutate({ id: task.id, status: e.target.value, author })}
+                onChange={(e) => setStatus.mutate({ id: task.id, status: e.target.value })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
                 {projectStatuses(project).map((s) => <option key={s}>{s}</option>)}

@@ -573,7 +573,7 @@ export default function TasksPage({ user }) {
                       t={t}
                       statuses={projectStatuses(projectById.get(t.projectId))}
                       changingStatus={advance.isPending && advance.variables?.id === t.id}
-                      onStatusChange={(task, status) => advance.mutate({ id: task.id, status, author: user?.name })}
+                      onStatusChange={(task, status) => advance.mutate({ id: task.id, status })}
                       onOpen={(task) => setPreviewId(task.id)}
                     />
                   ))}

@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchWorkspaces, createWorkspace } from '../features/workspaces/api'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  fetchWorkspaces, createWorkspace,
+  fetchWorkspaceMembers, addWorkspaceMember, removeWorkspaceMember,
+} from '../features/workspaces/api'
+import MemberSelect from '../components/MemberSelect'
 import HomePage from './HomePage'
 import MembersPage from './MembersPage'
 import DepartmentsPage from './Departmentspage'
@@ -64,11 +68,80 @@ const navIcons = {
 const initials = (name = '') =>
   name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
+// Who belongs to a workspace. Everyone in it can see the list; its creator
+// (or an Admin) can add and remove people.
+function WorkspaceMembersModal({ workspace, onClose }) {
+  const queryClient = useQueryClient()
+  const [pick, setPick] = useState('')
+  const membersQ = useQuery({
+    queryKey: ['workspace-members', workspace.id],
+    queryFn: () => fetchWorkspaceMembers(workspace.id),
+  })
+  const refresh = (list) => {
+    queryClient.setQueryData(['workspace-members', workspace.id], list)
+    queryClient.invalidateQueries({ queryKey: ['workspaces'] })
+  }
+  const add = useMutation({ mutationFn: addWorkspaceMember, onSuccess: (list) => { refresh(list); setPick('') } })
+  const remove = useMutation({ mutationFn: removeWorkspaceMember, onSuccess: refresh })
+  const members = membersQ.data ?? []
+  const error = [membersQ, add, remove].find((q) => q.isError)?.error.message
+
+  return (
+    <ModalShell title={`${workspace.name} · members`} subtitle={`${members.length} ${members.length === 1 ? 'member' : 'members'}`} onClose={onClose}>
+      <div className="space-y-1.5 max-h-72 overflow-y-auto">
+        {members.map((m) => (
+          <div key={m.id} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">{m.name}</p>
+              <p className="text-xs text-gray-400 truncate">{m.email}</p>
+            </div>
+            {workspace.canManage && (
+              <button
+                onClick={() => remove.mutate({ workspaceId: workspace.id, userId: m.id })}
+                disabled={remove.isPending}
+                className="text-xs text-red-500 hover:text-red-700 font-medium shrink-0"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        {membersQ.isLoading && <p className="text-sm text-gray-400">Loading members...</p>}
+      </div>
+      {workspace.canManage && (
+        <div className="flex gap-2">
+          <MemberSelect
+            value={pick}
+            onChange={setPick}
+            exclude={members.map((m) => m.name)}
+            placeholder="Add a member..."
+            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+          />
+          <button
+            onClick={() => add.mutate({ workspaceId: workspace.id, name: pick })}
+            disabled={!pick || add.isPending}
+            className="px-3 py-2 text-xs font-semibold rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+      )}
+      <ErrorNote message={error} />
+      <div className="flex justify-end">
+        <button onClick={onClose} className="px-4 py-2.5 text-sm font-medium rounded-xl text-gray-600 border border-gray-200 hover:bg-gray-50">
+          Close
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
 // US-51 — switch the active workspace from a dropdown near the top of the app.
-// Workspaces are a shared list on the backend; the one you pick is saved on
-// your profile so it sticks across reloads.
+// You see the workspaces you belong to (Admins see all); the one you pick is
+// saved on your profile so it sticks across reloads.
 function WorkspaceSwitcher({ current, workspaces, onChange, onCreate }) {
   const [open, setOpen] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
@@ -114,6 +187,14 @@ function WorkspaceSwitcher({ current, workspaces, onChange, onCreate }) {
               </button>
             ))}
             <div className="mx-2 mt-1 border-t border-gray-100 pt-1">
+              {current && (
+                <button
+                  onClick={() => { setShowMembers(true); setOpen(false) }}
+                  className="w-full rounded-lg px-2 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {current.canManage ? 'Manage members' : 'Members'} ({current.members})
+                </button>
+              )}
               <button
                 onClick={() => setShowNew(true)}
                 className="w-full rounded-lg px-2 py-2 text-left text-sm font-semibold text-sky-600 hover:bg-sky-50"
@@ -128,7 +209,7 @@ function WorkspaceSwitcher({ current, workspaces, onChange, onCreate }) {
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4" onClick={() => setShowNew(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-gray-900">New workspace</h2>
-            <p className="mt-1 text-sm text-gray-400">Keeps its own projects, tasks, sprints, meetings and forms. Members and departments are shared across workspaces.</p>
+            <p className="mt-1 text-sm text-gray-400">Keeps its own projects, tasks, sprints, meetings and forms. You'll be its first member and can add others. Departments are shared across workspaces.</p>
             <input
               autoFocus
               value={name}
@@ -147,6 +228,7 @@ function WorkspaceSwitcher({ current, workspaces, onChange, onCreate }) {
           </div>
         </div>
       )}
+      {showMembers && current && <WorkspaceMembersModal workspace={current} onClose={() => setShowMembers(false)} />}
     </div>
   )
 }

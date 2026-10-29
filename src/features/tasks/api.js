@@ -23,8 +23,9 @@ export async function fetchTask(id) {
   return present(task)
 }
 
-export async function updateTaskStatus({ id, status, author }) {
-  const task = await apiClient.patch(`/tasks/${id}/status`, { status, author })
+// The activity entry is attributed to the signed-in user by the backend.
+export async function updateTaskStatus({ id, status }) {
+  const task = await apiClient.patch(`/tasks/${id}/status`, { status })
   return present(task)
 }
 
@@ -58,13 +59,15 @@ export async function addAssignee({ taskId, name }) {
   return present(task)
 }
 
+// Name as a query parameter: a "/" in a name can't travel in the path.
 export async function removeAssignee({ taskId, name }) {
-  const task = await apiClient.delete(`/tasks/${taskId}/assignees/${encodeURIComponent(name)}`)
+  const task = await apiClient.delete(`/tasks/${taskId}/assignees?name=${encodeURIComponent(name)}`)
   return present(task)
 }
 
-export async function addComment({ taskId, author, text }) {
-  return apiClient.post(`/tasks/${taskId}/comments`, { author, text })
+// The comment is attributed to the signed-in user by the backend.
+export async function addComment({ taskId, text }) {
+  return apiClient.post(`/tasks/${taskId}/comments`, { text })
 }
 
 export async function toggleSubtask({ taskId, subtaskId }) {

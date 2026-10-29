@@ -74,14 +74,24 @@ Restores the session from a stored token after a page reload (`App.jsx`). 401 if
 
 ## Workspaces
 
-### `GET /workspaces` → `[{ id, name }]` (oldest first)
-### `POST /workspaces` — `{ name }` → `{ id, name }`. 409 if the name exists.
-The selected workspace is saved per user with `PATCH /me { workspaceId }`; `null` means "the first (oldest) one".
+### `GET /workspaces` → `Workspace[]` (oldest first) — the workspaces you're a member of; Admins get all of them.
+### `POST /workspaces` — `{ name }` → `Workspace`. You become its first member and can manage it. 409 if the name exists.
+### `GET /workspaces/:id/members` → `Member[]` — for members of that workspace (and Admins); 404 otherwise.
+### `POST /workspaces/:id/members` — `{ name }` → updated `Member[]`. Creator or Admin only (403); 404 for an unknown name.
+### `DELETE /workspaces/:id/members/:userId` → updated `Member[]`. Creator or Admin only.
+
+**Workspace shape:** `{ id, name, members: number, createdBy: "string | null", canManage: boolean }` — the switcher's "Manage members" dialog uses `canManage`.
+
+**Membership rules:**
+- Self-registered users join the oldest (default) workspace; invited members join the inviting admin's current workspace.
+- Everyone who existed when membership was introduced (V19) is a member of every existing workspace, so nobody lost access.
+- The selected workspace is saved per user with `PATCH /me { workspaceId }` — 403 if you aren't a member. If you're later removed, the backend falls back to the oldest workspace you still belong to.
+- Projects (and their tasks), sprints and forms of a workspace are only visible to its members (and Admins), even by id.
 
 **Workspaces separate data.** Projects (and so their tasks), sprints, meetings and forms belong to one workspace:
 - `GET /projects`, `/tasks`, `/sprints`, `/meetings`, `/forms` return only the caller's current workspace.
 - Creating one of those puts it in the caller's current workspace. Names only have to be unique within a workspace.
-- Members, departments and roles are organisation-wide (the same in every workspace).
+- Departments and roles are organisation-wide (the same in every workspace); who belongs to a workspace is managed per workspace (above).
 - After switching workspace the frontend refetches everything (`DashboardPage` invalidates all queries).
 
 ---
@@ -102,7 +112,7 @@ Visibility: a task is hidden (404, and left out of `GET /tasks`) if its project 
 - The caller is recorded as `createdBy` and as the author of the "Created" activity entry.
 - `sprintId` optional — links the new task to that sprint. 404 if the sprint doesn't exist; 409 if the sprint belongs to a different project than `projectId`.
 ### `POST /tasks/:id/assignees` — `{ name }` → `Task`
-### `DELETE /tasks/:id/assignees/:name` → `Task`
+### `DELETE /tasks/:id/assignees?name=<url-encoded name>` → `Task` — the name as a query parameter so names containing "/" work. The older `DELETE /tasks/:id/assignees/:name` still works for names without "/".
 ### `POST /tasks/:id/comments` — `{ text }` → `Task`. The author is the signed-in user (`author` in the body is ignored).
 ### `PATCH /tasks/:id/subtasks/:subtaskId/toggle` → `Task` (no body needed; flips `done`)
 ### `POST /tasks/:id/subtasks` — `{ text }` → `Task`
@@ -289,9 +299,16 @@ Sent when the recipient is Active and has `emailNotifications: true` (Settings �
 
 Emails go out in the background — a mail failure is logged and never fails the request. They contain a link to `<FRONTEND_URL>/#task-<uuid>` (task emails). With `MAIL_ENABLED=false` they're only logged.
 
+## Pagination
+
+Every list endpoint (`GET /projects`, `/tasks`, `/sprints`, `/projects/:id/sprints`, `/members`, `/departments`, `/meetings`, `/forms`, `/forms/:id/responses`, `/forms/responses/mine`, `/workspaces`) takes optional `?page=0&size=20`:
+- Without `page`/`size` the whole list comes back, as before. The frontend uses this, because its search, filters, Kanban columns and calendar work over full lists.
+- `size` is 1–200; anything else → 400. A page past the end is `[]`.
+- Every list response carries the total in the `X-Total-Count` header, which is exposed to the browser through CORS.
+
 ## Still outstanding
 
-- No pagination on any list endpoint.
+Nothing known. Every UI element is backed by the API above.
 
 ## Decided, not building
 
